@@ -1,23 +1,28 @@
 "use client";
 
 /**
- * Mango x RDEP — Smart receipt
+ * Mango x RDEP: smart receipt, "Lookbook"
  *
- * Concept: Mango's own look is editorial black and white, so black is the colour block here.
- * Compact black hero (white wordmark, tier chip, greeting) with the feedback card overlapping its
- * edge, then total paid, the receipt as torn thermal paper (black "total paid" band), a muted
- * autoplay video, swipeable coupon tickets (the centred one turns black), a compact Mango Club
- * membership card, profile, exchange, "Reach us", store card, closing card and a "Powered by" strip.
- * Popups are light rounded sheets.
+ * Concept: a printed lookbook page. A calm, airy canvas with wide-tracked capitals, hairline rules and square
+ * corners (no rounded cards). The receipt is a crisp ruled slip with mono type and dotted leaders, the store is a
+ * garment hang tag with a punched hole, and the page closes on a black stub. Colours: Mango black, white and the
+ * brand brown, with sand used very sparingly. Tier foil is the only metallic.
  *
- * Phone first: hover styles only apply on devices that can hover; on touch every button and link
- * dips while pressed and uses `active:` colours.
+ * Content flow (same order for every brand):
+ *   1. Greeting + tier chip
+ *   2. Video / banner carousel
+ *   3. Loyalty tabs: Points | Profile | Coupons
+ *   4. The receipt (tax invoice): items, totals, invoice details, payment, History / Email / Download
+ *   5. Rate your visit
+ *   6. Refer a friend
+ *   7. Reach out to us
+ *   8. Store
+ *   9. Terms and conditions (open by default), barcode, powered by
  *
- * Fixed layout: designed at 400px wide. On phones (<= 520px) it is scaled with CSS `zoom` to fill
- * the screen, on larger screens it stays a centred 400px column.
+ * Fixed layout: designed at 400px wide. On phones (<= 520px) the page is scaled with CSS `zoom`
+ * to fill the screen, on larger screens it stays a centred 400px column.
  *
- * FONTS (MangoSans, .ttf, in /public/fonts): "MangoSans Regular.ttf" (400), "MangoSans-Bold.ttf" (700)
- * ASSETS (in /public/images/design-mode): mango.png, RDEP-logo.png
+ * ASSETS (in /public): images/design-mode/mango.png (logo), images/design-mode/RDEP-logo.png, images/design-mode/mango-campaign-hero.png, mango-new-arrivals.png (1920x1080 banners)
  * Stack: Next.js (app router) + Tailwind. No other dependencies.
  *
  * Usage:  app/mango-receipt/page.tsx
@@ -25,7 +30,7 @@
  *   export default function Page() { return <MangoReceipt />; }
  *
  * With real data: <MangoReceipt receipts={[...]} data={currentReceipt} />
- *   `club` (tier, points, coupons) is optional on each receipt; those sections are hidden without it.
+ *   `club` (tier, points, coupons) is optional on each receipt; without it the Points and Coupons tabs are hidden.
  */
 
 import {
@@ -36,8 +41,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type CSSProperties,
-  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
@@ -45,10 +51,10 @@ import {
 import Image from "next/image";
 import { JetBrains_Mono } from "next/font/google";
 
+/* Receipt lines use JetBrains Mono (flip USE_RECEIPT_MONO to false for the brand sans with tabular numbers). */
 const mono = JetBrains_Mono({ subsets: ["latin"], display: "swap" });
 const USE_RECEIPT_MONO = true;
 const monoClass = USE_RECEIPT_MONO ? mono.className : "tabular-nums";
-
 const BRAND_STACK = `"MangoSans", Arial, "Helvetica Neue", Helvetica, sans-serif`;
 
 const FONT_FACES = `
@@ -63,59 +69,59 @@ const FONT_FACES = `
 .mg-root a:active,.mg-root button:not(:disabled):active{transform:scale(.97)}
 
 /* Rating stars flash in a wave until the first tap */
-@keyframes mg-star-flash{0%,100%{fill:var(--mg-wash);transform:scale(1)}45%{fill:var(--mg-brown);transform:scale(1.2)}}
-.mg-star-flash{animation:mg-star-flash 1.6s ease-in-out infinite}
+@keyframes mg-star{0%,10%{fill:transparent}24%,64%{fill:currentColor}80%,100%{fill:transparent}}
+.mg-star{fill:transparent;animation:mg-star 3.2s ease-in-out infinite}
 
-/* Light sweep across the membership card */
+/* Light sweep across the tier card */
 @keyframes mg-sheen{0%,55%{left:-60%}100%{left:130%}}
 .mg-sheen{position:relative;overflow:hidden}
-.mg-sheen::after{content:"";position:absolute;top:0;bottom:0;left:-60%;width:40%;pointer-events:none;background:linear-gradient(100deg,transparent,rgba(255,255,255,.14),transparent);transform:skewX(-18deg);animation:mg-sheen 5s ease-in-out infinite}
+.mg-sheen::after{content:"";position:absolute;top:0;bottom:0;left:-60%;width:40%;pointer-events:none;background:linear-gradient(100deg,transparent,rgba(255,255,255,.16),transparent);transform:skewX(-18deg);animation:mg-sheen 5s ease-in-out infinite}
+
+
 
 @media (prefers-reduced-motion:reduce){
-  .mg-star-flash{animation:none}
+  .mg-star{animation:none;fill:currentColor}
   .mg-sheen::after{animation:none;display:none}
   .mg-root a,.mg-root button:not(:disabled){transition:none}
   .mg-root a:active,.mg-root button:not(:disabled):active{transform:none}
+
 }
 `;
 
-/* Brand tokens. */
+/* Brand tokens: Mango black + brown on a cool light canvas. */
 const theme = {
-  "--mg-brown": "#8B6F5E",
-  "--mg-brown-dark": "#6E5445",
-  "--mg-ink": "#1A1A1A",
-  "--mg-canvas": "#F5F5F5",
-  "--mg-page": "#EAEAEA",
-  "--mg-wash": "#F8F8F8",
-  "--mg-press": "#EBEBEB",
-  "--mg-sand": "#D8C3B4",
-  "--mg-line": "rgba(139,111,94,0.2)",
-  "--mg-edge": "rgba(139,111,94,0.75)",
+  "--b-ink": "#1A1A1A",
+  "--b-acc": "#8B6F5E",
+  "--b-acc2": "#6E5445",
+  "--b-canvas": "#F5F5F5",
+  "--b-page": "#E4E2DF",
+  "--b-wash": "#F1EEEB",
+  "--b-line": "rgba(139,111,94,0.3)",
+  "--b-gray": "#666666",
+  "--b-soft": "#D8C3B4",
+  "--b-r": "0px",
+  "--b-r-s": "0px",
 } as CSSProperties;
 
-/* Assets + links */
-const DEFAULT_MANGO_LOGO = "/images/design-mode/mango.png";
+/* Assets + links (every one can be overridden with a prop) */
+const DEFAULT_LOGO = "/images/design-mode/mango.png";
 const DEFAULT_RDEP_LOGO = "/images/design-mode/RDEP-logo.png";
-const DEFAULT_INSTAGRAM_URL = "https://www.instagram.com/mango/";
-const DEFAULT_STORE_LOCATOR_URL = "https://shop.mango.com/in";
+const BRAND = "Mango";
+const PROGRAM = "Mango Club";
+const MARKETING_VIDEO_ID = "NOWWhR1JlGQ"; // https://youtu.be/NOWWhR1JlGQ
+/* Banner slides that follow the video. Put 1920x1080 images in /public and list them here;
+ * leave the array empty and the carousel is just the video. */
+const MARKETING_BANNERS: string[] = ["/images/design-mode/mango-campaign-hero.png", "/images/design-mode/mango-new-arrivals.png"];
+const MARKETING_IMAGE_MS = 4000;
 
-/* Marketing video: https://youtu.be/NOWWhR1JlGQ */
-const MARKETING_VIDEO_ID = "NOWWhR1JlGQ";
-
-/* Club tiers, lowest to highest. `foil` is the metallic gradient used on lettering and chips.
- * Rename the tiers here if the Mango team wants their own names (e.g. Style Insider / Curator / Icon). */
+/* Club tiers, lowest to highest. `foil` is the metallic gradient used on lettering and chips. */
 export type TierName = "Silver" | "Gold" | "Platinum";
 const TIERS: { name: TierName; foil: string }[] = [
   { name: "Silver", foil: "linear-gradient(120deg,#FFFFFF 0%,#C9CED6 35%,#8D949E 62%,#EEF0F3 100%)" },
   { name: "Gold", foil: "linear-gradient(120deg,#FFF3C4 0%,#E5BD52 38%,#A67C1A 62%,#F7E08F 100%)" },
   { name: "Platinum", foil: "linear-gradient(120deg,#FFFFFF 0%,#D6E2F2 32%,#93A9C9 62%,#F1F6FD 100%)" },
 ];
-const foilText = (foil: string): CSSProperties => ({
-  backgroundImage: foil,
-  WebkitBackgroundClip: "text",
-  backgroundClip: "text",
-  color: "transparent",
-});
+const foilText = (foil: string): CSSProperties => ({ backgroundImage: foil, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" });
 
 /* ------------------------------- types ------------------------------------------- */
 export interface MangoItem {
@@ -139,28 +145,44 @@ export interface MangoCoupon {
 
 export interface MangoClub {
   tier: TierName;
+  /** Available points */
   points: number;
   /** Points still needed for the next tier. null / omitted at the top tier. */
   pointsToNext?: number | null;
+  /** Points earned on this bill. Defaults to 1 point per ₹10. */
+  pointsEarned?: number;
+  pointsRedeemed?: number;
+  /** Shown as a highlighted strip when present */
+  expiring?: { points: number; on: string };
   coupons: MangoCoupon[];
+}
+
+export interface MangoReferral {
+  code: string;
+  /** Points both people get once the friend registers */
+  rewardPoints: number;
+  /** Optional join link added to the share message */
+  link?: string;
 }
 
 export interface MangoReceiptData {
   invoiceNo: string;
+  /** "DD-MM-YYYY HH:mm:ss" (the date part is used to sort the history) */
   date: string;
   customer: { name: string; mobile: string; email: string };
   items: MangoItem[];
   sgst: number;
   cgst: number;
   payment: { mode: string; ref: string };
-  store: { name: string; address: string; email: string; phone: string; gstin: string; associate: string };
+  store: { name: string; address: string; email: string; phone: string; gstin?: string; associate: string };
   registeredOffice: string;
   exchange: { days: number; points: string[] };
   callTo: string;
   emailTo: string;
-  /** Customer tier + coupons. Optional: the coupons, tier card and hero chip are hidden without it. */
   club?: MangoClub;
+  referral?: MangoReferral;
 }
+type Receipt = MangoReceiptData;
 
 export interface ProfileValues {
   name: string;
@@ -179,43 +201,40 @@ export interface FeedbackValues {
 }
 
 export interface MangoReceiptProps {
-  data?: MangoReceiptData;
-  receipts?: MangoReceiptData[];
+  /** Receipt to open first. Defaults to the newest receipt in `receipts`. */
+  data?: Receipt;
+  /** All receipts of this customer. Drives the history popup. */
+  receipts?: Receipt[];
+  /** Real QR / barcode image URLs (placeholders are drawn if omitted) */
   qrSrc?: string;
+  barcodeSrc?: string;
   logoSrc?: string;
   rdepLogoSrc?: string;
-  instagramUrl?: string;
-  storeLocatorUrl?: string;
-  onDownload?: (receipt: MangoReceiptData) => void;
-  onSendEmail?: (email: string, receipt: MangoReceiptData) => void;
+  /** Overrides the built-in download. Receives the receipt currently on screen. */
+  onDownload?: (receipt: Receipt) => void;
+  onSendEmail?: (email: string, receipt: Receipt) => void;
   onSaveProfile?: (values: ProfileValues) => void;
   onSubmitFeedback?: (values: FeedbackValues) => void;
+  onRefer?: (code: string) => void;
   onSelectReceipt?: (invoiceNo: string) => void;
 }
 
 type IconName =
-  | "history" | "mail" | "download" | "phone" | "instagram" | "pin" | "store"
-  | "close" | "check" | "arrow" | "chevron" | "user" | "tax" | "directions" | "call"
-  | "star" | "ticket";
-type ModalId = "history" | "email" | "qr" | null;
-
-interface HistoryRow {
-  invoiceNo: string;
-  date: string;
-  storeName: string;
-  amount: number;
-  items: number;
-  current: boolean;
-}
+  | "history" | "mail" | "download" | "star" | "users" | "trend" | "gift" | "alert" | "phone" | "close"
+  | "chevron" | "ticket" | "check" | "arrow" | "pin" | "copy" | "user" | "coins" | "anchor";
+type TabId = "points" | "profile" | "coupons";
+type ModalId = "history" | "email" | null;
 
 /* ------------------------------- helpers ----------------------------------------- */
 const inr = (n: number): string => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const inr0 = (n: number): string => n.toLocaleString("en-IN");
 const trim = (n: number): string => String(Number(n.toFixed(2)));
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 const netOf = (i: MangoItem): number => round2(i.mrp * i.qty - i.discount);
 const emailOk = (s: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+const esc = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-function totalsOf(r: MangoReceiptData) {
+function totalsOf(r: Receipt) {
   const subtotal = round2(r.items.reduce((a, i) => a + i.mrp * i.qty, 0));
   const discount = round2(r.items.reduce((a, i) => a + i.discount, 0));
   return { subtotal, discount, total: round2(subtotal - discount), pieces: r.items.reduce((a, i) => a + i.qty, 0) };
@@ -242,67 +261,52 @@ function seeded(seed: string): () => number {
 }
 
 /* ---------------------------- downloadable receipt ------------------------------- */
-const esc = (s: string): string =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
-function buildReceiptHtml(r: MangoReceiptData, logoSrc: string, rdepLogoSrc: string): string {
-  const abs = (p: string) => (/^(https?:|data:)/.test(p) ? p : `${window.location.origin}${encodeURI(p)}`);
+/** Standalone, print-ready HTML for one receipt. The "Save as PDF" button inside it opens the print dialog. */
+function buildReceiptHtml(r: Receipt, logoSrc: string, rdepLogoSrc: string): string {
+  const abs = (p: string) => (/^(https?:|data:)/.test(p) ? p : `${window.location.origin}${p}`);
   const t = totalsOf(r);
   const rows = r.items
-    .map(
-      (i) => `<tr>
-      <td><div class="n">${esc(i.name)}</div><div class="s">Size ${esc(i.size)} &middot; SKU ${esc(i.sku)} &middot; HSN ${esc(i.hsn)}</div></td>
-      <td class="r">${i.qty}</td><td class="r">${inr(i.mrp)}</td><td class="r">&minus;${inr(i.discount)}</td><td class="r b">${inr(netOf(i))}</td></tr>`,
-    )
+    .map((i) => {
+      const gross = i.mrp * i.qty;
+      const pct = gross > 0 ? (i.discount / gross) * 100 : 0;
+      return `<tr><td><div class="n">${esc(i.name)}</div><div class="s">SKU ${esc(i.sku)} &middot; HSN ${esc(i.hsn)} &middot; Size ${esc(i.size)}</div></td><td class="r">${i.qty}</td><td class="r">${inr(gross)}</td><td class="r">${trim(pct)}%</td><td class="r b">${inr(netOf(i))}</td></tr>`;
+    })
     .join("");
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mango Receipt ${esc(r.invoiceNo)}</title>
+  const terms = r.exchange.points.map((p) => `<li>${esc(p)}</li>`).join("");
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${BRAND} receipt ${esc(r.invoiceNo)}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Arial,'Helvetica Neue',sans-serif;font-size:14px;color:#8B6F5E;background:#F5F5F5;max-width:760px;margin:0 auto;padding:24px}
-.bar{display:flex;justify-content:flex-end;margin-bottom:16px}
-.bar button{background:#1A1A1A;color:#fff;border:0;border-radius:10px;padding:10px 18px;font:700 13px Arial,sans-serif;cursor:pointer}
-.sheet{background:#fff;border-radius:20px;padding:28px}
-.head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding-bottom:16px;border-bottom:3px solid #1A1A1A}
-.head img{height:34px;width:auto}
-h1{font-size:22px;color:#1A1A1A;text-transform:uppercase;letter-spacing:1px;margin-top:12px}
-.meta{text-align:right;font-size:12px;line-height:1.8}
-table{width:100%;border-collapse:collapse;margin-top:20px}
-th{text-align:left;font-size:11px;letter-spacing:.8px;padding:8px;background:#F5F5F5;border-bottom:1px solid rgba(139,111,94,.3)}
-td{padding:12px 8px;border-bottom:1px solid rgba(139,111,94,.3);vertical-align:top;font-size:13px}
-.r{text-align:right}.b{font-weight:700;color:#1A1A1A}.n{text-transform:uppercase;font-weight:700;color:#1A1A1A}.s{font-size:11px;margin-top:3px}
-.sum{margin:18px 0 0 auto;width:300px}
-.row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}
-.total{display:flex;justify-content:space-between;align-items:baseline;border-top:3px solid #1A1A1A;margin-top:10px;padding-top:12px;color:#1A1A1A;font-weight:700}
-.total strong{font-size:26px}
-.pay{margin-top:18px;background:#1A1A1A;color:#fff;border-radius:14px;padding:14px 16px;display:flex;justify-content:space-between;font-size:14px}
-.store{margin-top:24px;font-size:12px;line-height:1.7;border-top:1px solid rgba(139,111,94,.3);padding-top:14px}
-.foot{margin-top:22px;text-align:center;font-size:12px}.foot img{height:20px;vertical-align:middle;margin-left:6px}
-@media print{.bar{display:none}body{max-width:none;padding:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{border-radius:0}}
+body{font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1A1A1A;background:#fff;max-width:780px;margin:0 auto;padding:24px}
+.bar{display:flex;justify-content:flex-end;margin-bottom:16px}.bar button{background:#8B6F5E;color:#fff;border:0;padding:10px 18px;font:700 13px Arial;cursor:pointer}
+.head{display:flex;justify-content:space-between;gap:20px;padding-bottom:16px;border-bottom:4px solid #8B6F5E;margin-bottom:20px}.head img{height:44px;width:auto}
+.head h1{font-size:24px;text-transform:uppercase;letter-spacing:.5px;margin-top:10px}.meta{text-align:right;font-size:12px;line-height:1.7}
+.store{background:#f4f4f4;border-left:4px solid #8B6F5E;padding:12px 14px;margin-bottom:18px;font-size:12px;line-height:1.6}.store h2{font-size:15px}
+table{width:100%;border-collapse:collapse}th{background:#1A1A1A;color:#fff;text-align:left;padding:9px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+td{padding:11px 8px;border-bottom:1px solid #ddd;vertical-align:top;font-size:12px}.r{text-align:right}th.r{text-align:right}.b{font-weight:700}.n{font-weight:700;text-transform:uppercase}.s{font-size:11px;color:#666;margin-top:3px}
+.sum{margin:20px 0 0 auto;width:300px}.row{display:flex;justify-content:space-between;padding:4px 0;font-size:13px}.net{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:12px 14px;background:#8B6F5E;color:#fff}.net strong{font-size:22px}
+.terms{margin-top:26px;padding-top:14px;border-top:1px dashed #bbb;font-size:10px;color:#666;line-height:1.6}.terms ol{padding-left:16px;margin:6px 0}
+.foot{margin-top:24px;padding-top:16px;border-top:1px dashed #bbb;text-align:center;font-size:12px;color:#666}.foot img{height:20px;vertical-align:middle;margin-left:6px}
+@media print{.bar{display:none}body{padding:0;max-width:none}}
 </style></head><body>
 <div class="bar"><button onclick="window.print()">Save as PDF</button></div>
-<div class="sheet">
-<div class="head"><div><img src="${esc(abs(logoSrc))}" alt="Mango" onerror="this.style.display='none'"><h1>Tax invoice</h1></div>
-<div class="meta"><div><b>Invoice no:</b> ${esc(r.invoiceNo)}</div><div><b>Date:</b> ${esc(r.date)}</div><div><b>Customer:</b> ${esc(r.customer.name)}</div><div><b>Mobile:</b> ${esc(r.customer.mobile)}</div></div></div>
-<table><thead><tr><th style="width:44%">ITEM</th><th class="r">QTY</th><th class="r">UNIT PRICE</th><th class="r">DISCOUNT</th><th class="r">NET AMOUNT</th></tr></thead><tbody>${rows}</tbody></table>
-<div class="sum">
-<div class="row"><span>Subtotal (MRP)</span><b>&#8377;${inr(t.subtotal)}</b></div>
-<div class="row"><span>Discount</span><b>&minus;&#8377;${inr(t.discount)}</b></div>
-<div class="row"><span>Includes SGST</span><b>&#8377;${inr(r.sgst)}</b></div>
-<div class="row"><span>Includes CGST</span><b>&#8377;${inr(r.cgst)}</b></div>
-<div class="total"><span>Total paid</span><strong>&#8377;${inr(t.total)}</strong></div></div>
-<div class="pay"><span>Payment method &middot; ${esc(r.payment.mode)} &ndash; ${esc(r.payment.ref)}</span><b>&#8377;${inr(t.total)}</b></div>
-<div class="store"><b>${esc(r.store.name)}</b><br>${esc(r.store.address)}<br>${esc(r.store.email)} &middot; ${esc(r.store.phone)}<br>GSTIN: ${esc(r.store.gstin)}<br>Registered office: ${esc(r.registeredOffice)}</div>
-<div class="foot">Thank you for shopping at Mango<br><br>Powered by <img src="${esc(abs(rdepLogoSrc))}" alt="rdep" onerror="this.style.display='none'"></div>
-</div></body></html>`;
+<div class="head"><div><img src="${esc(abs(logoSrc))}" alt="${BRAND}" onerror="this.style.display='none'"><h1>Tax invoice</h1></div>
+<div class="meta"><div><strong>Invoice no:</strong> ${esc(r.invoiceNo)}</div><div><strong>Date:</strong> ${esc(r.date)}</div><div><strong>Associate:</strong> ${esc(r.store.associate)}</div></div></div>
+<div class="store"><h2>${esc(r.store.name)}</h2><div>${esc(r.store.address)}</div><div>${esc(r.store.phone)} &middot; ${esc(r.store.email)}${r.store.gstin ? ` &middot; GSTIN ${esc(r.store.gstin)}` : ""}</div></div>
+<p style="margin-bottom:16px;font-size:13px"><strong>Customer:</strong> ${esc(r.customer.name)} &middot; ${esc(r.customer.mobile)}</p>
+<table><thead><tr><th style="width:46%">Item</th><th class="r">Qty</th><th class="r">MRP</th><th class="r">Disc.</th><th class="r">Net amount</th></tr></thead><tbody>${rows}</tbody></table>
+<div class="sum"><div class="row"><span>Subtotal (MRP)</span><strong>${inr(t.subtotal)}</strong></div><div class="row"><span>Discount</span><strong>- ${inr(t.discount)}</strong></div><div class="row"><span>SGST</span><strong>${inr(r.sgst)}</strong></div><div class="row"><span>CGST</span><strong>${inr(r.cgst)}</strong></div>
+<div class="net"><span>NET TOTAL</span><strong>&#8377;${inr(t.total)}</strong></div><div class="row" style="margin-top:8px"><span>Paid by</span><strong>${esc(r.payment.mode)} &ndash; ${esc(r.payment.ref)}</strong></div></div>
+<div class="terms"><strong>Terms and conditions</strong><ol>${terms}</ol><p>Registered office: ${esc(r.registeredOffice)}</p></div>
+<div class="foot">Thank you for shopping at ${BRAND}.<br><br>Powered by <img src="${esc(abs(rdepLogoSrc))}" alt="rdep" onerror="this.style.display='none'"></div>
+</body></html>`;
 }
 
-function downloadReceipt(r: MangoReceiptData, logoSrc: string, rdepLogoSrc: string) {
+function downloadReceipt(r: Receipt, logoSrc: string, rdepLogoSrc: string) {
   const blob = new Blob([buildReceiptHtml(r, logoSrc, rdepLogoSrc)], { type: "text/html" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `Mango_Receipt_${r.invoiceNo}.html`;
+  a.download = `${BRAND}_Receipt_${r.invoiceNo}.html`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -312,11 +316,12 @@ function downloadReceipt(r: MangoReceiptData, logoSrc: string, rdepLogoSrc: stri
 /* -------------------------------- Sample Data ----------------------------------- */
 const halfTax = (total: number): number => Math.floor(((total - total / 1.18) / 2) * 100) / 100;
 
-/* SAMPLE club data. Replace with the real tier, points and coupons from the Mango loyalty API. */
+/* SAMPLE data. Replace with the real tier, points, coupons and referral from the loyalty API. */
 const SAMPLE_CLUB: MangoClub = {
   tier: "Gold",
   points: 3240,
   pointsToNext: 1760,
+  expiring: { points: 640, on: "12 Jan 2027" },
   coupons: [
     { code: "MANGO20", value: "20% OFF", title: "Welcome back offer", description: "On your next purchase of ₹3,999 or more.", validTill: "30 Nov 2026" },
     { code: "GOLD500", value: "₹500 OFF", title: "Gold member reward", description: "On any order above ₹2,999.", validTill: "31 Dec 2026" },
@@ -348,6 +353,7 @@ const SAMPLE_COMMON = {
   callTo: "+911244665318",
   emailTo: "contact@mango.com",
   club: SAMPLE_CLUB,
+  referral: { code: "SAGAR-MNG500", rewardPoints: 500 } as MangoReferral,
 };
 
 export const sampleMangoReceipts: MangoReceiptData[] = [
@@ -394,79 +400,29 @@ export const sampleMangoReceipts: MangoReceiptData[] = [
 ];
 
 /* -------------------------------- icons ------------------------------------------ */
+const PHONE_PATH =
+  "M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z";
 const STAR_PATH = "m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.2-6.2 3.2L7 14.2 2 9.3l6.9-1z";
 const PATHS: Record<IconName, ReactNode> = {
-  history: (
-    <>
-      <path d="M3 12a9 9 0 1 0 3-6.7" />
-      <path d="M3 4v5h5" />
-      <path d="M12 7v5l3 2" />
-    </>
-  ),
-  mail: (
-    <>
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <path d="m3 7 9 6 9-6" />
-    </>
-  ),
-  download: (
-    <>
-      <path d="M12 3v12" />
-      <path d="m7 11 5 5 5-5" />
-      <path d="M5 20h14" />
-    </>
-  ),
-  phone: (
-    <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
-  ),
-  instagram: (
-    <>
-      <rect x="3" y="3" width="18" height="18" rx="5" />
-      <circle cx="12" cy="12" r="4" />
-      <path d="M17.5 6.5h.01" />
-    </>
-  ),
-  pin: (
-    <>
-      <path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z" />
-      <circle cx="12" cy="10" r="3" />
-    </>
-  ),
-  store: (
-    <>
-      <path d="M3 9 4.5 4h15L21 9" />
-      <path d="M4 9v11h16V9" />
-      <path d="M3 9c0 1.7 1.3 3 3 3s3-1.3 3-3c0 1.7 1.3 3 3 3s3-1.3 3-3c0 1.7 1.3 3 3 3s3-1.3 3-3" />
-      <path d="M10 20v-5h4v5" />
-    </>
-  ),
-  user: (
-    <>
-      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </>
-  ),
-  tax: (
-    <>
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M7 8h10M7 12h10M7 16h6" />
-    </>
-  ),
-  directions: <path d="M9 18l6-6-6-6" />,
-  call: (
-    <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
-  ),
+  history: (<><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /><path d="M12 7v5l3 2" /></>),
+  mail: (<><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>),
+  download: (<><path d="M12 3v12" /><path d="m7 11 5 5 5-5" /><path d="M5 20h14" /></>),
   star: <path d={STAR_PATH} />,
-  ticket: (
-    <>
-      <path d="M3 9a2 2 0 0 0 0 6v3a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a2 2 0 0 1 0-6V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z" />
-      <path d="M9 9h6M9 12h6M9 15h3" />
-    </>
-  ),
+  users: (<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.9" /><path d="M16 3.1a4 4 0 0 1 0 7.8" /></>),
+  trend: (<><path d="m3 17 6-6 4 4 8-8" /><path d="M15 7h6v6" /></>),
+  gift: (<><rect x="3" y="8" width="18" height="4" rx="1" /><path d="M5 12v9h14v-9" /><path d="M12 8v13" /><path d="M12 8c-1-3-5-4-5-1.5S10 8 12 8Zm0 0c1-3 5-4 5-1.5S14 8 12 8Z" /></>),
+  alert: (<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18" /><path d="M12 13v3M12 18.5h.01" /></>),
+  phone: <path d={PHONE_PATH} />,
   close: <path d="M18 6 6 18M6 6l12 12" />,
+  chevron: <path d="m6 9 6 6 6-6" />,
+  ticket: (<><path d="M3 9a2 2 0 0 0 0 6v3a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a2 2 0 0 1 0-6V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z" /><path d="M9 9h6M9 12h6M9 15h3" /></>),
   check: <path d="m5 12 5 5 9-10" />,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
-  chevron: <path d="m6 9 6 6 6-6" />,
+  pin: (<><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></>),
+  copy: (<><rect x="9" y="9" width="12" height="12" rx="3" /><path d="M5 15V6a3 3 0 0 1 3-3h9" /></>),
+  user: (<><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>),
+  coins: (<><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" /><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></>),
+  anchor: (<><circle cx="12" cy="5" r="2.5" /><path d="M12 7.5V22" /><path d="M5 12H2a10 10 0 0 0 20 0h-3" /><path d="M8 11h8" /></>),
 };
 
 function Icon({ name, className = "h-5 w-5" }: { name: IconName; className?: string }) {
@@ -477,7 +433,7 @@ function Icon({ name, className = "h-5 w-5" }: { name: IconName; className?: str
   );
 }
 
-/* ------------------------- placeholder QR ---------------------------------------- */
+/* ------------------------- placeholder QR + barcode ------------------------------ */
 function PlaceholderQR({ seed }: { seed: string }) {
   const N = 25;
   const cells = useMemo(() => {
@@ -495,11 +451,9 @@ function PlaceholderQR({ seed }: { seed: string }) {
     </g>
   );
   return (
-    <svg viewBox={`-1 -1 ${N + 2} ${N + 2}`} fill="#1A1A1A" shapeRendering="crispEdges" role="img" aria-label="Receipt QR code" className="h-full w-full">
+    <svg viewBox={`-1 -1 ${N + 2} ${N + 2}`} fill="#111111" shapeRendering="crispEdges" role="img" aria-label="Receipt QR code" className="h-full w-full">
       <rect x="-1" y="-1" width={N + 2} height={N + 2} fill="#fff" />
-      {cells.map(([x, y]) => (
-        <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" />
-      ))}
+      {cells.map(([x, y]) => (<rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" />))}
       {finder(0, 0)}
       {finder(N - 7, 0)}
       {finder(0, N - 7)}
@@ -507,20 +461,65 @@ function PlaceholderQR({ seed }: { seed: string }) {
   );
 }
 
-/* --------------------------------- shared ---------------------------------------- */
-const onPaper = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mg-ink)]";
-const lift = "border border-black/5 shadow-[0_10px_28px_-14px_rgba(26,26,26,0.35)]";
+function PlaceholderBarcode({ seed }: { seed: string }) {
+  const bars = useMemo(() => {
+    const rnd = seeded(seed);
+    const out: [number, number][] = [];
+    let x = 0;
+    while (x < 240) {
+      const w = 1 + Math.floor(rnd() * 3);
+      out.push([x, w]);
+      x += w + 1 + Math.floor(rnd() * 2);
+    }
+    return out;
+  }, [seed]);
+  return (
+    <svg viewBox="0 0 244 56" fill="#111111" shapeRendering="crispEdges" role="img" aria-label="Receipt barcode" className="h-14 w-full max-w-xs">
+      {bars.map(([x, w]) => (<rect key={x} x={x} y="0" width={w} height="56" />))}
+    </svg>
+  );
+}
 
-const fieldInput =
-  "w-full rounded-none border-0 border-b-2 border-[var(--mg-edge)] bg-transparent px-0 py-2.5 text-base text-[var(--mg-ink)] outline-none transition-colors [-webkit-appearance:none] [appearance:none] placeholder:text-[var(--mg-brown)] focus:border-[var(--mg-ink)]";
-const fieldLabel = "mb-1 block text-[13px] text-[var(--mg-brown)]";
-const solidBtn = `flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--mg-ink)] py-4 text-[13px] font-bold uppercase tracking-[0.12em] text-white transition-colors active:bg-[var(--mg-brown)] [@media(hover:hover)]:hover:bg-[var(--mg-brown)] motion-reduce:transition-none ${onPaper}`;
-const outlineBtn = `flex items-center justify-center gap-2 rounded-xl border-2 border-[var(--mg-ink)] bg-white py-4 text-[13px] font-bold uppercase tracking-[0.08em] text-[var(--mg-ink)] transition-colors active:border-[var(--mg-ink)] [@media(hover:hover)]:hover:border-[var(--mg-ink)] active:bg-[var(--mg-ink)] [@media(hover:hover)]:hover:bg-[var(--mg-ink)] active:text-white [@media(hover:hover)]:hover:text-white motion-reduce:transition-none ${onPaper}`;
+/* --------------------------------- shared ui ------------------------------------- */
+const ROOT_CLASS = "mg-root";
+const MAIN_CLASS = "mx-auto w-[400px] overflow-hidden bg-[var(--b-canvas)] pb-0 sm:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.35)]";
+const FOCUS = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--b-acc)]";
+const DISPLAY = "mg-display uppercase tracking-[0.16em]";
+const DISPLAY_NUM = "mg-display tracking-[0.02em]";
+const MONO = monoClass;
+const CARD = "border border-[var(--b-line)] bg-white";
+const FIELD = "w-full border-0 border-b border-black/30 bg-transparent px-0 py-2.5 text-base text-[var(--b-ink)] outline-none placeholder:text-black/40 focus:border-[var(--b-acc)]";
+const FLABEL = "mb-1 block text-[12px] uppercase tracking-[0.14em] text-[var(--b-gray)]";
+const BTN = `mg-display w-full bg-[var(--b-ink)] py-4 text-[13px] uppercase tracking-[0.22em] text-white active:bg-[var(--b-acc)] [@media(hover:hover)]:hover:bg-[var(--b-acc)] ${FOCUS}`;
+const BTN_OUT = `mg-display flex items-center justify-center gap-2 border border-[var(--b-ink)] bg-white py-4 text-[13px] uppercase tracking-[0.18em] text-[var(--b-ink)] active:bg-[var(--b-ink)] active:text-white [@media(hover:hover)]:hover:bg-[var(--b-ink)] [@media(hover:hover)]:hover:text-white ${FOCUS}`;
+const CHIP_BTN = `inline-flex shrink-0 items-center gap-1.5 border border-[var(--b-ink)] px-3.5 py-2 text-[12px] font-bold uppercase tracking-[0.1em] active:bg-[var(--b-ink)] active:text-white ${FOCUS}`;
+const CHIP_ON = "bg-[var(--b-ink)] text-white";
+const MEDIA_FRAME = "border border-[var(--b-line)]";
+const DOT = "h-[3px]";
+const DOT_ON = "w-8 bg-[var(--b-ink)]";
+const DOT_OFF = "w-4 bg-black/25";
+const MODAL_BODY = "border-t-2 border-[var(--b-ink)] bg-white px-5 pb-7 pt-6 text-[var(--b-ink)]";
+const CLOSE_BTN = `grid h-10 w-10 shrink-0 place-items-center border border-[var(--b-ink)] active:bg-[var(--b-ink)] active:text-white ${FOCUS}`;
+const TIER_CARD = "bg-[var(--b-ink)] p-5 text-white";
+const ALERT_CARD = "bg-[var(--b-acc)] text-white";
+const REFER_CARD = `bg-[var(--b-ink)] text-white active:bg-[var(--b-acc)] [@media(hover:hover)]:hover:bg-[var(--b-acc)] ${FOCUS}`;
+const REFER_CODE = "border border-white/50 text-white";
+const REFER_ARROW = "bg-white text-[var(--b-ink)]";
+const PAPER_WRAP = "mx-4 mt-10";
+const PAPER_SHADOW = "none";
+const PAPER_BODY = "border border-[var(--b-ink)] bg-white px-5 pb-6 pt-5";
+const NET_WRAP = "mt-3.5 bg-[var(--b-ink)] px-4 py-4 text-white";
+const NET_AMT = "text-[32px]";
+const ACTION_BTN = `${MONO} flex min-w-0 flex-col items-center gap-2 border border-[var(--b-ink)] px-1 py-3.5 text-center text-[11px] font-bold uppercase leading-tight tracking-[0.06em] active:bg-[var(--b-ink)] active:text-white [@media(hover:hover)]:hover:bg-[var(--b-ink)] [@media(hover:hover)]:hover:text-white ${FOCUS}`;
+const STORE_LINE = "border-black/30";
+const STUB_LINE = "border-white/30";
 
+/* ---------- fixed-width scaling ---------- */
 const DESIGN_W = 400;
 const PHONE_MAX = 520;
 const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
+/** 1 on tablets/desktop (centred 400px column); viewport/400 on phones so the layout is identical. */
 function useFitScale(): number {
   const [scale, setScale] = useState(1);
   useIsoLayoutEffect(() => {
@@ -538,9 +537,8 @@ function useFitScale(): number {
   }, []);
   return scale;
 }
-const zoomStyle = (scale: number): CSSProperties | undefined => (scale === 1 ? undefined : ({ zoom: scale } as CSSProperties));
+const zoomStyle = (scale: number): CSSProperties | undefined => (scale === 1 ? undefined : { zoom: scale });
 
-/** True while the element is inside the viewport (expanded by `rootMargin`, needs `threshold` visible). */
 function useInView<T extends Element>(ref: RefObject<T | null>, rootMargin: string, threshold: number): boolean {
   const [inView, setInView] = useState(false);
   useEffect(() => {
@@ -557,11 +555,22 @@ function useInView<T extends Element>(ref: RefObject<T | null>, rootMargin: stri
   return inView;
 }
 
-function BrandImage({
-  src, alt, width, height, className, fallbackClassName, priority = false,
-}: {
-  src: string; alt: string; width: number; height: number; className: string; fallbackClassName: string; priority?: boolean;
-}) {
+function useCopy() {
+  const [copied, setCopied] = useState("");
+  const copy = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      /* clipboard blocked: still show the confirmation so the code can be read out */
+    }
+    setCopied(text);
+    window.setTimeout(() => setCopied((c) => (c === text ? "" : c)), 1800);
+  }, []);
+  return { copied, copy };
+}
+
+/** Logo image that falls back to a text wordmark instead of a broken-image icon. */
+function BrandImage({ src, alt, width, height, className, fallbackClassName, priority = false }: { src: string; alt: string; width: number; height: number; className: string; fallbackClassName: string; priority?: boolean }) {
   const [failed, setFailed] = useState(false);
   if (failed) return <span className={fallbackClassName}>{alt}</span>;
   return (
@@ -580,69 +589,118 @@ function BrandImage({
   );
 }
 
+/** Label ...... value, like a printed receipt line. */
 function Leader({ label, value, strong = false, className = "" }: { label: ReactNode; value: ReactNode; strong?: boolean; className?: string }) {
   return (
     <div className={`flex items-baseline gap-2 ${className}`}>
-      <dt className="flex min-w-0 flex-1 items-baseline gap-2 after:mb-[3px] after:h-0 after:min-w-3 after:flex-1 after:border-b after:border-dotted after:border-current after:opacity-40 after:content-['']">
-        {label}
-      </dt>
-      <dd className={`shrink-0 text-right tabular-nums ${strong ? "font-bold text-[var(--mg-ink)]" : ""}`}>{value}</dd>
+      <dt className="flex min-w-0 flex-1 items-baseline gap-2 after:mb-[3px] after:h-0 after:min-w-3 after:flex-1 after:border-b after:border-dotted after:border-current after:opacity-40 after:content-['']">{label}</dt>
+      <dd className={`shrink-0 text-right tabular-nums ${strong ? "font-semibold" : ""}`}>{value}</dd>
     </div>
   );
 }
 
+/** Height-animated disclosure body (respects reduced motion). */
 function Collapse({ open, id, children }: { open: boolean; id: string; children: ReactNode }) {
   return (
-    <div
-      id={id}
-      aria-hidden={!open}
-      className={`grid transition-[grid-template-rows,visibility] duration-300 motion-reduce:transition-none ${
-        open ? "visible grid-rows-[1fr]" : "invisible grid-rows-[0fr]"
-      }`}
-    >
+    <div id={id} aria-hidden={!open} className={`grid transition-[grid-template-rows] duration-300 motion-reduce:transition-none ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
       <div className="overflow-hidden">{children}</div>
     </div>
   );
 }
 
-function ZigZag({ down = false }: { down?: boolean }) {
-  const id = useId().replace(/:/g, "");
+/* ------------------------------ brand pieces ------------------------------------- */
+/** Mango keeps its paper square: no torn or scalloped edge, just a hairline frame. */
+function PaperEdge(_: { down?: boolean }) {
+  return null;
+}
+
+/** Centred, airy greeting: logo on top, wide-tracked name, hairline date rule. */
+function Hero({ data, logoSrc, chip }: { data: Receipt; logoSrc: string; chip: ReactNode }) {
+  const first = data.customer.name.split(" ")[0];
+  const size = Math.min(44, Math.max(22, Math.floor(290 / (0.74 * first.length + 0.6))));
   return (
-    <svg aria-hidden="true" className="block h-2.5 w-full">
-      <defs>
-        <pattern id={id} width="16" height="10" patternUnits="userSpaceOnUse">
-          <path d={down ? "M0 0 L8 10 L16 0 Z" : "M0 10 L8 0 L16 10 Z"} fill="#fff" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="10" fill={`url(#${id})`} />
-    </svg>
+    <header className="px-6 pb-9 pt-7 text-center">
+      <div className="relative flex items-center justify-center">
+        <BrandImage src={logoSrc} alt="MANGO" width={320} height={80} priority className="h-7 w-auto max-w-[45%] object-contain" fallbackClassName="mg-display text-[24px] uppercase tracking-[0.34em]" />
+        {chip && <span className="absolute right-0 top-1/2 -translate-y-1/2">{chip}</span>}
+      </div>
+      <p className="mt-12 text-[12px] uppercase tracking-[0.5em] text-[var(--b-acc)]">Hello</p>
+      <h1 className="mg-display mt-3 uppercase leading-none tracking-[0.1em] [overflow-wrap:anywhere]" style={{ fontSize: size }}>
+        {first}
+      </h1>
+      <div className="mx-auto mt-6 flex items-center justify-center gap-3 text-[12px] uppercase tracking-[0.22em] text-[var(--b-gray)]">
+        <span aria-hidden="true" className="h-px w-10 bg-[var(--b-acc)]" />
+        {data.date.split(" ")[0]}
+        <span aria-hidden="true" className="h-px w-10 bg-[var(--b-acc)]" />
+      </div>
+    </header>
   );
 }
 
-function Heading({ children, sub, size = 22 }: { children: ReactNode; sub?: string; size?: number }) {
+type TabItem = { id: TabId; label: string; icon: IconName; badge?: number };
+/** Quiet text tabs on a hairline, active one underlined in brown. */
+function TabBar({ tabs, tab, onChange }: { tabs: TabItem[]; tab: TabId; onChange: (t: TabId) => void }) {
   return (
-    <div>
-      <h2 className="mg-display uppercase leading-[1.1] tracking-[0.05em] text-[var(--mg-ink)]" style={{ fontSize: size }}>
-        {children}
-      </h2>
-      <span aria-hidden="true" className="mt-2.5 block h-1 w-10 rounded-full bg-[var(--mg-brown)]" />
-      {sub && <p className="mt-2.5 text-[14px] leading-snug text-[var(--mg-brown)]">{sub}</p>}
+    <div role="tablist" aria-label={PROGRAM} className="flex border-b border-[var(--b-line)]">
+      {tabs.map((t) => {
+        const on = tab === t.id;
+        return (
+          <button key={t.id} role="tab" type="button" id={`tab-${t.id}`} aria-selected={on} aria-controls={`panel-${t.id}`} onClick={() => onChange(t.id)} className={`mg-display relative flex-1 pb-3.5 text-center text-[13px] uppercase tracking-[0.2em] ${FOCUS} ${on ? "text-[var(--b-ink)]" : "text-[var(--b-gray)]"}`}>
+            {t.label}
+            {t.badge ? <sup className="ml-1 text-[10px] tracking-normal text-[var(--b-acc)]">{t.badge}</sup> : null}
+            {on && <span aria-hidden="true" className="absolute inset-x-5 -bottom-px h-[2px] bg-[var(--b-acc)]" />}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-/* Popups: light rounded sheets */
-function Modal({
-  title,
-  onClose,
-  scale,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  scale: number;
-  children: ReactNode;
-}) {
+function Tog({ open }: { open: boolean }) {
+  return (
+    <span aria-hidden="true" className={`${MONO} grid h-5 w-5 place-items-center border border-[var(--b-ink)] text-[13px] font-bold leading-none ${open ? "bg-[var(--b-ink)] text-white" : ""}`}>
+      {open ? "−" : "+"}
+    </span>
+  );
+}
+
+function SectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <div>
+      <h2 className="mg-display text-[22px] uppercase leading-none tracking-[0.2em]">{children}</h2>
+      <span aria-hidden="true" className="mt-3 block h-px w-12 bg-[var(--b-acc)]" />
+    </div>
+  );
+}
+
+/** Garment hang tag: punched hole, hairline border. */
+function StoreShell({ children }: { children: ReactNode }) {
+  return (
+    <section aria-label="Store" className="relative border border-[var(--b-ink)] bg-white px-5 pb-5 pt-11 text-[var(--b-ink)]">
+      <span aria-hidden="true" className="absolute left-1/2 top-3.5 h-4 w-4 -translate-x-1/2 rounded-full border border-[var(--b-ink)] bg-[var(--b-canvas)]" />
+      {children}
+    </section>
+  );
+}
+
+/** Black closing stub. */
+function StubShell({ children }: { children: ReactNode }) {
+  return <footer className="mt-12 bg-[var(--b-ink)] px-5 pb-10 pt-7 text-white">{children}</footer>;
+}
+
+/** Tier chip (metallic foil). */
+function TierChip({ tier }: { tier: TierName }) {
+  const t = TIERS.find((x) => x.name === tier) ?? TIERS[0];
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold uppercase tracking-[0.12em] text-[#1A1A1A]" style={{ background: t.foil }}>
+      <Icon name="star" className="h-3.5 w-3.5" />
+      {tier}
+    </span>
+  );
+}
+
+/* ------------------------------ popups -------------------------------------------- */
+function Modal({ title, onClose, scale, children }: { title: string; onClose: () => void; scale: number; children: ReactNode }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const closeRef = useRef(onClose);
@@ -663,33 +721,14 @@ function Modal({
   }, []);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-[#1A1A1A]/60 backdrop-blur-[2px] sm:items-center sm:p-4"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="mg-root max-h-[88vh] w-full overflow-y-auto rounded-t-[32px] bg-white outline-none sm:w-[400px] sm:rounded-[32px]"
-      >
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className={`${ROOT_CLASS} max-h-[88vh] w-full overflow-y-auto outline-none sm:w-[400px]`} style={theme}>
         <div className="w-full sm:w-[400px]" style={zoomStyle(scale)}>
-          <div className="p-6 text-[var(--mg-brown)]">
-            <div className="flex items-center justify-between gap-4 border-b border-[var(--mg-line)] pb-4">
-              <div className="min-w-0">
-                <h2 id={titleId} className="mg-display text-[20px] font-bold uppercase tracking-[0.05em] text-[var(--mg-ink)]">
-                  {title}
-                </h2>
-                <span className="mt-2 block h-1 w-10 rounded-full bg-[var(--mg-brown)]" />
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close"
-                className={`grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--mg-wash)] text-[var(--mg-ink)] transition-colors active:bg-[var(--mg-press)] ${onPaper}`}
-              >
+          <PaperEdge />
+          <div className={MODAL_BODY}>
+            <div className="flex items-start justify-between gap-4">
+              <h2 id={titleId} className={`${DISPLAY} text-[26px] leading-none`}>{title}</h2>
+              <button type="button" onClick={onClose} aria-label="Close" className={CLOSE_BTN}>
                 <Icon name="close" className="h-4 w-4" />
               </button>
             </div>
@@ -701,874 +740,605 @@ function Modal({
   );
 }
 
-/* ------------------------------ paper item row ----------------------------------- */
-function PaperItem({ item, open, onToggle }: { item: MangoItem; open: boolean; onToggle: () => void }) {
-  const panelId = useId();
-  const m = monoClass;
-  const net = netOf(item);
-  const gross = item.mrp * item.qty;
-  const pct = gross > 0 ? (item.discount / gross) * 100 : 0;
-  return (
-    <li className="border-b border-dashed border-black/40 py-3.5 last:border-b-0">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        aria-controls={panelId}
-        className={`grid w-full grid-cols-[auto_minmax(0,1fr)_auto] gap-x-2.5 rounded text-left ${onPaper}`}
-      >
-        <span aria-hidden="true" className={`${m} text-[13px] font-bold leading-snug text-[var(--mg-brown)]`}>
-          [{open ? "−" : "+"}]
-        </span>
-        <span className="min-w-0">
-          <span className={`${m} block text-[13px] font-semibold uppercase leading-snug text-[var(--mg-ink)]`}>{item.name}</span>
-          <span className={`${m} mt-1 block text-xs text-[var(--mg-brown)]`}>
-            SIZE {item.size} &nbsp; QTY {item.qty} &nbsp; MRP {item.mrp.toLocaleString("en-IN")}
-          </span>
-        </span>
-        <span className={`${m} text-sm font-bold leading-snug tabular-nums text-[var(--mg-ink)]`}>{inr(net)}</span>
-      </button>
-
-      <Collapse open={open} id={panelId}>
-        <div className={`${m} ml-8 mt-3 space-y-2.5 border-l-2 border-[var(--mg-brown)] pl-3 text-xs`}>
-          <dl className="flex items-baseline justify-between gap-3">
-            <dt className="text-[var(--mg-brown)]">SKU</dt>
-            <dd className="text-[13px] font-bold tracking-wide text-[var(--mg-ink)]">{item.sku}</dd>
-          </dl>
-
-          <dl className="grid grid-cols-2 divide-x divide-black/15 rounded-md border border-black/15">
-            {(
-              [
-                ["HSN", item.hsn],
-                ["UoM", "Pcs"],
-              ] as [string, string][]
-            ).map(([k, v]) => (
-              <div key={k} className="min-w-0 px-1.5 py-1.5">
-                <dt className="text-[var(--mg-brown)]">{k}</dt>
-                <dd className="mt-0.5 break-words font-bold tabular-nums text-[var(--mg-ink)]">{v}</dd>
-              </div>
-            ))}
-          </dl>
-
-          <dl className="grid grid-cols-2 gap-2">
-            <div className="rounded-md bg-[var(--mg-wash)] px-2.5 py-1.5 text-[var(--mg-brown-dark)]">
-              <dt>Discount %</dt>
-              <dd className="mt-0.5 text-[13px] font-bold tabular-nums">{trim(pct)}</dd>
-            </div>
-            <div className="rounded-md bg-[var(--mg-wash)] px-2.5 py-1.5 text-[var(--mg-brown-dark)]">
-              <dt>Discount amount</dt>
-              <dd className="mt-0.5 text-[13px] font-bold tabular-nums">{trim(item.discount)}</dd>
-            </div>
-          </dl>
-        </div>
-      </Collapse>
-    </li>
-  );
+/* ------------------------------ video / banner carousel -------------------------- */
+interface YtPlayer {
+  playVideo(): void;
+  pauseVideo(): void;
+  getPlayerState(): number; // 1 = playing
+  getIframe(): HTMLIFrameElement;
+  destroy(): void;
+}
+interface YtPlayerEvent {
+  target: YtPlayer;
+  data: number;
+}
+interface YtNamespace {
+  Player: new (
+    el: HTMLElement,
+    opts: {
+      videoId: string;
+      width?: string | number;
+      height?: string | number;
+      playerVars?: Record<string, string | number>;
+      events?: { onReady?: (e: YtPlayerEvent) => void; onStateChange?: (e: YtPlayerEvent) => void };
+    },
+  ) => YtPlayer;
+}
+declare global {
+  interface Window {
+    YT?: YtNamespace;
+    onYouTubeIframeAPIReady?: () => void;
+  }
 }
 
-/* ------------------------------- rating card -------------------------------------- */
-const RATING_WORDS = ["Poor", "Fair", "Good", "Very good", "Excellent"];
-const FEEDBACK_CATEGORIES = [
-  { key: "service", label: "Service quality" },
-  { key: "product", label: "Product offering" },
-  { key: "sizes", label: "Sizes availability" },
-  { key: "value", label: "Value for money" },
-] as const;
+let ytApiPromise: Promise<YtNamespace> | null = null;
 
-function SleekRateCard({ data, onSubmit }: { data: MangoReceiptData; onSubmit?: (v: FeedbackValues) => void }) {
-  const [overall, setOverall] = useState(0);
-  const [hover, setHover] = useState(0);
-  const [expanded, setExpanded] = useState(false);
-  const [cats, setCats] = useState({ service: 0, product: 0, sizes: 0, value: 0 });
-  const [comment, setComment] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const commentId = useId();
-  const detailId = useId();
-  const m = monoClass;
-  const shown = hover || overall;
-
-  const handleStarClick = (n: number) => {
-    setOverall(n);
-    setExpanded(true);
-  };
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    onSubmit?.({ invoiceNo: data.invoiceNo, overall, categories: cats, comment: comment.trim() });
-    setSubmitted(true);
-  };
-
-  return (
-    <section
-      aria-label="Rate your visit"
-      className="relative overflow-hidden rounded-2xl border border-black/[0.06] bg-white p-4 text-[var(--mg-brown)] shadow-[0_10px_28px_-14px_rgba(26,26,26,0.35)]"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <span className="mg-display block text-[9px] uppercase tracking-[0.18em] text-[var(--mg-brown)]">Quick Feedback</span>
-          <h2 className="mg-display mt-0.5 text-[16px] uppercase leading-tight tracking-[0.02em] text-[var(--mg-ink)]">How was your visit?</h2>
-        </div>
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[var(--mg-line)] bg-[var(--mg-wash)] text-[var(--mg-brown)]">
-          <Icon name="star" className="h-4 w-4" />
-        </span>
-      </div>
-
-      {submitted ? (
-        <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-black/5 bg-[var(--mg-wash)] p-3" aria-live="polite">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--mg-ink)] text-white">
-            <Icon name="check" className="h-4 w-4" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="mg-display text-[14px] uppercase tracking-wider text-[var(--mg-ink)]">Thank you for rating!</p>
-            <p className="mt-0.5 text-[12px] text-[var(--mg-brown)]">
-              You gave {overall} stars ({RATING_WORDS[overall - 1].toLowerCase()}).
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setSubmitted(false);
-                setExpanded(false);
-                setOverall(0);
-              }}
-              className={`${m} mt-1.5 text-[11px] font-bold text-[var(--mg-ink)] underline underline-offset-2`}
-            >
-              [ Edit rating ]
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="mt-3">
-          <div className="flex items-center justify-between rounded-2xl border border-black/5 bg-[var(--mg-wash)] px-4 py-3">
-            <div role="radiogroup" aria-label="Overall rating" className="flex gap-1.5" onMouseLeave={() => setHover(0)}>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  role="radio"
-                  aria-checked={overall === n}
-                  aria-label={`${n} ${n === 1 ? "star" : "stars"}, ${RATING_WORDS[n - 1]}`}
-                  onMouseEnter={() => setHover(n)}
-                  onClick={() => handleStarClick(n)}
-                  className={`grid h-9 w-9 place-items-center rounded-lg ${onPaper}`}
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    strokeWidth="1.5"
-                    strokeLinejoin="round"
-                    className={`h-6 w-6 stroke-[var(--mg-brown)] transition-colors ${n <= shown ? "fill-[var(--mg-brown)]" : "fill-white"} ${
-                      !overall && !hover ? "mg-star-flash" : ""
-                    }`}
-                    style={!overall && !hover ? { animationDelay: `${(n - 1) * 0.18}s` } : undefined}
-                  >
-                    <path d={STAR_PATH} />
-                  </svg>
-                </button>
-              ))}
-            </div>
-            <div className="pl-2 text-right">
-              <p className="mg-display text-[11px] uppercase tracking-wide text-[var(--mg-ink)]">{overall ? RATING_WORDS[overall - 1] : "Tap to rate"}</p>
-              <p className="text-[9px] font-medium text-[var(--mg-brown)]">{overall ? `${overall}/5 stars` : "Instant feedback"}</p>
-            </div>
-          </div>
-
-          <Collapse open={expanded} id={detailId}>
-            <form onSubmit={submit} noValidate className="mt-3 space-y-3 border-t border-[var(--mg-line)] pt-3">
-              <div>
-                <p className={`${m} mb-2.5 text-[11px] font-bold uppercase tracking-wider text-[var(--mg-brown)]`}>Rate specific categories</p>
-                <div className="space-y-2">
-                  {FEEDBACK_CATEGORIES.map((c) => (
-                    <div key={c.key} className="flex items-center justify-between rounded-xl border border-black/5 bg-[var(--mg-wash)] px-3 py-2">
-                      <span className={`${m} text-[11px] font-semibold uppercase text-[var(--mg-ink)]`}>{c.label}</span>
-                      <div className="flex gap-0.5">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <button
-                            key={star}
-                            type="button"
-                            onClick={() => setCats((p) => ({ ...p, [c.key]: star }))}
-                            className="p-1"
-                            aria-label={`${star} stars for ${c.label}`}
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              strokeWidth="1.5"
-                              className={`h-4 w-4 stroke-[var(--mg-brown)] ${star <= cats[c.key] ? "fill-[var(--mg-brown)]" : "fill-white"}`}
-                            >
-                              <path d={STAR_PATH} />
-                            </svg>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor={commentId} className={`${fieldLabel} text-[11px] font-bold uppercase tracking-wider`}>
-                  Any additional thoughts? (Optional)
-                </label>
-                <textarea
-                  id={commentId}
-                  rows={2}
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Tell us what you liked or how we can improve..."
-                  className={`${fieldInput} resize-none text-[13px]`}
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <button type="submit" className={`${solidBtn} !py-3 text-[12px]`}>
-                  Submit rating
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setExpanded(false)}
-                  className="rounded-xl border border-black/10 bg-[var(--mg-wash)] px-4 py-3 text-[12px] font-bold uppercase tracking-wider text-[var(--mg-brown)] active:bg-[var(--mg-press)]"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </Collapse>
-        </div>
-      )}
-    </section>
-  );
+/** Loads https://www.youtube.com/iframe_api once and resolves with the YT namespace. */
+function loadYouTubeApi(): Promise<YtNamespace> {
+  if (typeof window === "undefined") return Promise.reject(new Error("No window"));
+  if (window.YT?.Player) return Promise.resolve(window.YT);
+  if (!ytApiPromise) {
+    ytApiPromise = new Promise<YtNamespace>((resolve, reject) => {
+      const previous = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        previous?.();
+        if (window.YT) resolve(window.YT);
+      };
+      const script = document.createElement("script");
+      script.src = "https://www.youtube.com/iframe_api";
+      script.async = true;
+      script.onerror = () => {
+        ytApiPromise = null;
+        reject(new Error("YouTube API failed to load"));
+      };
+      document.head.appendChild(script);
+    });
+  }
+  return ytApiPromise;
 }
 
-/* ------------------------------- video card --------------------------------------- */
-/** YouTube embed that autoplays muted while at least half of it is on screen and pauses when it
- *  leaves. No external script: it talks to the player through postMessage (enablejsapi=1). */
-function VideoCard() {
+/** Video + banners. The video autoplays (muted) while on screen and pauses when it leaves; once it has
+ *  played, the carousel stops auto-advancing until someone swipes or taps a dot. The top of the video is
+ *  covered by a transparent tap zone so swipes work over the iframe; the bottom strip stays free for
+ *  YouTube's own controls. */
+function MarketingCarousel() {
+  const slides = useMemo(() => ["video", ...MARKETING_BANNERS] as string[], []);
+  const count = slides.length;
   const sectionRef = useRef<HTMLElement>(null);
-  const frameRef = useRef<HTMLIFrameElement>(null);
-  const [mounted, setMounted] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<YtPlayer | null>(null);
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+  const [index, setIndex] = useState(0);
+  const [autoAdvance, setAutoAdvance] = useState(true);
+  const [armed, setArmed] = useState(false);
+  const [ready, setReady] = useState(false);
+
   const near = useInView(sectionRef, "300px 0px", 0);
   const visible = useInView(sectionRef, "0px", 0.5);
+  const onVideo = slides[index] === "video";
 
   useEffect(() => {
-    if (near) setMounted(true);
+    if (near) setArmed(true);
   }, [near]);
 
-  const command = useCallback((func: string) => {
-    frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args: "" }), "*");
-  }, []);
-
   useEffect(() => {
-    if (!loaded) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const func = visible ? "playVideo" : "pauseVideo";
-    // the player needs a moment after the iframe loads, so retry a couple of times
-    const timers = [0, 600, 1500].map((ms) => window.setTimeout(() => command(func), ms));
-    return () => timers.forEach((t) => window.clearTimeout(t));
-  }, [loaded, visible, command]);
-
-  const src = mounted
-    ? `https://www.youtube-nocookie.com/embed/${MARKETING_VIDEO_ID}?enablejsapi=1&mute=1&playsinline=1&rel=0&modestbranding=1&loop=1&playlist=${MARKETING_VIDEO_ID}&origin=${encodeURIComponent(window.location.origin)}`
-    : "";
-
-  return (
-    <section ref={sectionRef} aria-label="Mango video">
-      <div
-        className={`relative aspect-video w-full overflow-hidden rounded-3xl bg-[var(--mg-ink)] bg-cover bg-center ${lift}`}
-        style={{ backgroundImage: `url(https://i.ytimg.com/vi/${MARKETING_VIDEO_ID}/hqdefault.jpg)` }}
-      >
-        {mounted && (
-          <iframe
-            ref={frameRef}
-            src={src}
-            title="Mango video"
-            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-            allowFullScreen
-            loading="lazy"
-            onLoad={() => setLoaded(true)}
-            className="absolute inset-0 h-full w-full border-0"
-          />
-        )}
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------ coupons (swipeable, centred card turns black) ------ */
-function CouponCard({
-  coupon, active, wide, copied, onCopy,
-}: {
-  coupon: MangoCoupon; active: boolean; wide: boolean; copied: boolean; onCopy: (code: string) => void;
-}) {
-  const m = monoClass;
-  return (
-    <li className={`shrink-0 snap-center ${wide ? "w-[78%]" : "w-full"}`}>
-      <div
-        className={`relative overflow-hidden rounded-3xl border transition-all duration-300 motion-reduce:transition-none ${
-          active
-            ? "scale-100 border-[var(--mg-ink)] bg-[var(--mg-ink)] text-white shadow-[0_14px_28px_-14px_rgba(26,26,26,0.7)]"
-            : "scale-[0.97] border-black/5 bg-white text-[var(--mg-ink)] shadow-[0_8px_20px_-14px_rgba(26,26,26,0.35)]"
-        }`}
-      >
-        <div className="p-4 pb-4">
-          <div className="flex items-start justify-between gap-3">
-            <p className="mg-display text-[26px] leading-none tracking-[0.01em]">{coupon.value}</p>
-            <span
-              className={`grid h-8 w-8 shrink-0 place-items-center rounded-full transition-colors duration-300 ${
-                active ? "bg-white/10 text-[var(--mg-sand)]" : "bg-[var(--mg-wash)] text-[var(--mg-brown)]"
-              }`}
-            >
-              <Icon name="ticket" className="h-4 w-4" />
-            </span>
-          </div>
-          <p className="mg-display mt-2.5 text-[12px] uppercase tracking-[0.06em]">{coupon.title}</p>
-          <p className={`mt-1 text-[12px] leading-snug transition-colors duration-300 ${active ? "text-white/70" : "text-[var(--mg-brown)]"}`}>
-            {coupon.description}
-          </p>
-        </div>
-
-        {/* perforation with side notches */}
-        <div className="relative">
-          <span aria-hidden="true" className="absolute -left-3 -top-3 h-6 w-6 rounded-full bg-[var(--mg-canvas)]" />
-          <span aria-hidden="true" className="absolute -right-3 -top-3 h-6 w-6 rounded-full bg-[var(--mg-canvas)]" />
-          <div className={`border-t-2 border-dashed transition-colors duration-300 ${active ? "border-white/25" : "border-black/20"}`} />
-        </div>
-
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className={`${m} truncate text-[14px] font-bold tracking-[0.1em]`}>{coupon.code}</p>
-            <p className={`mt-0.5 text-[10px] transition-colors duration-300 ${active ? "text-white/55" : "text-[var(--mg-brown)]"}`}>
-              Valid till {coupon.validTill}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => onCopy(coupon.code)}
-            aria-live="polite"
-            className={`shrink-0 rounded-full px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.08em] ${
-              active ? "bg-white text-[var(--mg-ink)] active:bg-[var(--mg-sand)]" : "bg-[var(--mg-ink)] text-white active:bg-[var(--mg-brown)]"
-            }`}
-          >
-            {copied ? "Copied" : "Copy"}
-          </button>
-        </div>
-      </div>
-    </li>
-  );
-}
-
-function CouponsSection({ coupons }: { coupons: MangoCoupon[] }) {
-  const [copied, setCopied] = useState("");
-  const [active, setActive] = useState(0);
-  const [dragging, setDragging] = useState(false);
-  const trackRef = useRef<HTMLUListElement>(null);
-  const activeRef = useRef(0);
-  const drag = useRef({ down: false, x: 0, left: 0, moved: false });
-  const count = coupons.length;
-
-  /* the card sitting in the middle strip of the track is the active one */
-  useEffect(() => {
-    const root = trackRef.current;
-    if (!root || typeof IntersectionObserver === "undefined") return;
-    const items = Array.from(root.children);
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) {
-            const i = items.indexOf(e.target);
-            if (i >= 0) {
-              activeRef.current = i;
-              setActive(i);
-            }
-          }
+    const host = hostRef.current;
+    if (!armed || !host) return;
+    let cancelled = false;
+    let player: YtPlayer | null = null;
+    const mount = document.createElement("div");
+    host.appendChild(mount);
+    loadYouTubeApi()
+      .then((YT) => {
+        if (cancelled) return;
+        player = new YT.Player(mount, {
+          videoId: MARKETING_VIDEO_ID,
+          width: "100%",
+          height: "100%",
+          playerVars: { autoplay: 0, mute: 1, playsinline: 1, rel: 0, modestbranding: 1, origin: window.location.origin },
+          events: {
+            onReady: (e) => {
+              if (cancelled) return;
+              playerRef.current = e.target;
+              setReady(true);
+            },
+            onStateChange: (e) => {
+              if (e.data === 1) setAutoAdvance(false);
+            },
+          },
         });
-      },
-      { root, rootMargin: "0px -45% 0px -45%", threshold: 0 },
-    );
-    items.forEach((i) => io.observe(i));
-    return () => io.disconnect();
-  }, [count]);
+      })
+      .catch(() => {
+        /* API blocked or offline: the thumbnail stays */
+      });
+    return () => {
+      cancelled = true;
+      playerRef.current = null;
+      setReady(false);
+      try {
+        player?.destroy();
+      } catch {
+        /* already gone */
+      }
+      mount.remove();
+    };
+  }, [armed]);
 
-  const goTo = useCallback((i: number) => {
-    const el = trackRef.current;
-    const child = el?.children[i] as HTMLElement | undefined;
-    if (!el || !child) return;
-    el.scrollTo({ left: child.offsetLeft - (el.clientWidth - child.offsetWidth) / 2, behavior: "smooth" });
-  }, []);
+  useEffect(() => {
+    const p = playerRef.current;
+    if (!ready || !p) return;
+    p.getIframe().tabIndex = onVideo ? 0 : -1;
+    if (onVideo && visible) p.playVideo();
+    else p.pauseVideo();
+  }, [ready, onVideo, visible]);
 
-  /* mouse drag-to-scroll (touch screens scroll natively) */
-  const onPointerDown = (e: ReactPointerEvent<HTMLUListElement>) => {
-    if (e.pointerType !== "mouse") return;
-    const el = trackRef.current;
-    if (!el) return;
-    drag.current = { down: true, x: e.clientX, left: el.scrollLeft, moved: false };
-    setDragging(true);
-  };
-  const onPointerMove = (e: ReactPointerEvent<HTMLUListElement>) => {
-    const d = drag.current;
-    const el = trackRef.current;
-    if (!d.down || !el) return;
-    const dx = e.clientX - d.x;
-    if (Math.abs(dx) > 5) d.moved = true;
-    el.scrollLeft = d.left - dx;
-  };
-  const endDrag = () => {
-    if (!drag.current.down) return;
-    drag.current.down = false;
-    setDragging(false);
-    goTo(activeRef.current);
+  useEffect(() => {
+    if (count < 2 || !autoAdvance || !visible || onVideo) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = window.setTimeout(() => setIndex((i) => (i + 1) % count), MARKETING_IMAGE_MS);
+    return () => window.clearTimeout(t);
+  }, [autoAdvance, visible, onVideo, index, count]);
+
+  const goTo = useCallback(
+    (i: number) => {
+      setAutoAdvance(true);
+      setIndex(((i % count) + count) % count);
+    },
+    [count],
+  );
+
+  const togglePlayback = () => {
+    const p = playerRef.current;
+    if (!p) return;
+    if (p.getPlayerState() === 1) p.pauseVideo();
+    else p.playVideo();
   };
 
-  const copy = async (code: string) => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(code);
-      window.setTimeout(() => setCopied(""), 1800);
-    } catch {
-      /* clipboard blocked: ignore */
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    startRef.current = { x: e.clientX, y: e.clientY };
+  };
+  const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const s = startRef.current;
+    startRef.current = null;
+    if (!s) return;
+    const dx = e.clientX - s.x;
+    const dy = e.clientY - s.y;
+    if (count > 1 && Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy)) {
+      goTo(index + (dx < 0 ? 1 : -1));
+      return;
     }
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && (e.target as HTMLElement).dataset.tapZone !== undefined) togglePlayback();
+  };
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLElement>) => {
+    if (e.key === "ArrowLeft") goTo(index - 1);
+    else if (e.key === "ArrowRight") goTo(index + 1);
   };
 
   return (
-    <section aria-label="Coupons">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="mg-display text-[18px] uppercase leading-none tracking-[0.05em] text-[var(--mg-ink)]">Coupons</h2>
-        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--mg-brown)] shadow-[0_4px_12px_-8px_rgba(26,26,26,0.4)]">
-          {count} available
-        </span>
+    <section ref={sectionRef} aria-roledescription="carousel" aria-label={`${BRAND} highlights`} onKeyDown={onKeyDown}>
+      <div
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => {
+          startRef.current = null;
+        }}
+        className={`${MEDIA_FRAME} relative touch-pan-y select-none overflow-hidden bg-black`}
+      >
+        <div className="flex transition-transform duration-500 ease-out motion-reduce:transition-none" style={{ transform: `translateX(-${index * 100}%)` }}>
+          {slides.map((kind, i) => (
+            <div key={`${kind}-${i}`} role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${count}`} aria-hidden={i !== index} className="relative aspect-video w-full shrink-0">
+              {kind !== "video" ? (
+                <Image src={kind} alt={`${BRAND} banner`} width={1920} height={1080} sizes="(max-width: 520px) 100vw, 400px" draggable={false} className="pointer-events-none block h-full w-full select-none object-cover" />
+              ) : (
+                <div className="relative h-full w-full bg-[#111] bg-cover bg-center" style={{ backgroundImage: `url(https://i.ytimg.com/vi/${MARKETING_VIDEO_ID}/hqdefault.jpg)` }}>
+                  <div ref={hostRef} className="absolute inset-0 [&_iframe]:h-full [&_iframe]:w-full" />
+                  <div data-tap-zone="" aria-hidden="true" className="absolute inset-x-0 bottom-[20%] top-0 cursor-pointer touch-pan-y" />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {count === 0 ? (
-        <div className="mt-3 flex flex-col items-center rounded-3xl border-2 border-dashed border-black/20 bg-white px-6 py-7 text-center">
-          <Icon name="ticket" className="h-8 w-8 text-[var(--mg-brown)]" />
-          <p className="mg-display mt-2 text-[15px] uppercase tracking-[0.05em] text-[var(--mg-ink)]">No coupons available</p>
-          <p className="mt-1 text-[13px] text-[var(--mg-brown)]">Please check this section later.</p>
+      {count > 1 && (
+        <div className="mt-2 flex justify-center gap-1">
+          {slides.map((kind, i) => (
+            <button key={`${kind}-${i}`} type="button" aria-label={`Show slide ${i + 1} of ${count}`} aria-current={i === index ? "true" : undefined} onClick={() => goTo(i)} className={`grid h-6 w-8 place-items-center rounded-full ${FOCUS}`}>
+              <span className={`${DOT} block transition-all motion-reduce:transition-none ${i === index ? DOT_ON : DOT_OFF}`} />
+            </button>
+          ))}
         </div>
-      ) : (
-        <>
-          <ul
-            ref={trackRef}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={endDrag}
-            onPointerLeave={endDrag}
-            onPointerCancel={endDrag}
-            onClickCapture={(e) => {
-              if (drag.current.moved) {
-                e.preventDefault();
-                e.stopPropagation();
-                drag.current.moved = false;
-              }
-            }}
-            className={`relative -mx-4 mt-3 flex select-none gap-3 overflow-x-auto overscroll-x-contain px-4 pb-4 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-              dragging ? "cursor-grabbing snap-none" : "cursor-grab snap-x snap-mandatory"
-            }`}
-          >
-            {coupons.map((c, i) => (
-              <CouponCard key={c.code} coupon={c} active={i === active} wide={count > 1} copied={copied === c.code} onCopy={copy} />
-            ))}
-          </ul>
-
-          {count > 1 && (
-            <div className="-mt-1 flex justify-center gap-0.5">
-              {coupons.map((c, i) => (
-                <button key={c.code} type="button" aria-label={`Show coupon ${i + 1} of ${count}`} aria-current={i === active ? "true" : undefined} onClick={() => goTo(i)} className="grid h-5 w-6 place-items-center">
-                  <span className={`block h-1.5 rounded-full transition-all duration-300 ${i === active ? "w-5 bg-[var(--mg-ink)]" : "w-1.5 bg-black/20"}`} />
-                </button>
-              ))}
-            </div>
-          )}
-        </>
       )}
     </section>
   );
 }
 
-/* ------------------------------ Mango Club: compact tier card ---------------------- */
-function TierCard({
-  club, mobile, sectionRef,
-}: {
-  club: MangoClub; mobile: string; sectionRef: RefObject<HTMLElement | null>;
-}) {
-  const m = monoClass;
+/* ------------------------------ loyalty tabs ------------------------------------- */
+function Stat({ icon, value, label }: { icon: IconName; value: string; label: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--b-wash)] text-[var(--b-acc)]">
+        <Icon name={icon} className="h-5 w-5" />
+      </span>
+      <div>
+        <dd className={`${DISPLAY_NUM} text-[28px] leading-none tabular-nums`}>{value}</dd>
+        <dt className="mt-1 text-[13px] text-[var(--b-gray)]">{label}</dt>
+      </div>
+    </div>
+  );
+}
+
+function PointsPanel({ club, mobile, earned }: { club: NonNullable<Receipt["club"]>; mobile: string; earned: number }) {
   const idx = Math.max(0, TIERS.findIndex((t) => t.name === club.tier));
   const tier = TIERS[idx];
   const next = TIERS[idx + 1];
   const toNext = club.pointsToNext ?? null;
   const total = toNext != null ? club.points + toNext : club.points;
   const pct = !next || toNext == null || total <= 0 ? 100 : Math.min(100, Math.round((club.points / total) * 100));
-  /* nodes sit at 0%, 50%, 100%; the fill runs up to the current tier plus progress to the next */
-  const fill = idx * 50 + (next ? pct / 2 : 0);
+  return (
+    <div role="tabpanel" id="panel-points" aria-labelledby="tab-points" className="space-y-3">
+      <div className={`mg-sheen ${TIER_CARD}`}>
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-[12px] uppercase tracking-[0.16em] text-white/65">
+            {PROGRAM} <span className="tracking-[0.12em]">· •••• {mobile.slice(-4)}</span>
+          </p>
+          <span className={`${DISPLAY_NUM} text-[22px] uppercase leading-none`} style={foilText(tier.foil)}>{tier.name}</span>
+        </div>
+        <p className="mt-5 text-[13px] text-white/65">Available points</p>
+        <p className={`${DISPLAY_NUM} mt-1 text-[64px] leading-[0.95] tabular-nums`}>{inr0(club.points)}</p>
+        <div className="mt-5">
+          <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Progress to next tier" className="h-1.5 w-full overflow-hidden bg-white/20" style={{ borderRadius: 99 }}>
+            <div className="h-full" style={{ width: `${pct}%`, background: tier.foil, borderRadius: 99 }} />
+          </div>
+          <p className="mt-2.5 text-[13px] text-white/75">
+            {next && toNext != null ? (
+              <>
+                <span className="font-bold text-white">{inr0(toNext)}</span> more points to {next.name}
+              </>
+            ) : (
+              "You are at the top tier."
+            )}
+          </p>
+        </div>
+      </div>
+
+      <div className={`${CARD} p-5`}>
+        <dl className="grid grid-cols-2 gap-4">
+          <Stat icon="trend" value={inr0(earned)} label="Earned today" />
+          <Stat icon="gift" value={inr0(club.pointsRedeemed ?? 0)} label="Redeemed" />
+        </dl>
+      </div>
+
+      {club.expiring && (
+        <div className={`${ALERT_CARD} flex items-center gap-4 p-5`}>
+          <Icon name="alert" className="h-9 w-9 shrink-0" />
+          <p className="text-[15px]">
+            <span className={`${DISPLAY_NUM} block text-[26px] leading-none tabular-nums`}>{inr0(club.expiring.points)} points</span>
+            <span className="mt-1.5 block">
+              Expiring on <span className="font-bold">{club.expiring.on}</span>
+            </span>
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const GENDERS = ["Male", "Female", "Other"];
+
+function ProfilePanel({ data, onSave }: { data: Receipt; onSave?: (v: ProfileValues) => void }) {
+  const [form, setForm] = useState<ProfileValues>({ name: data.customer.name, email: data.customer.email, gender: "", birthday: "", anniversary: "", offers: false });
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState("");
+  const upd = <K extends keyof ProfileValues>(k: K, v: ProfileValues[K]) => {
+    setSaved(false);
+    setForm((f) => ({ ...f, [k]: v }));
+  };
+  const text = (k: "name" | "email" | "birthday" | "anniversary") => (e: ChangeEvent<HTMLInputElement>) => upd(k, e.target.value);
 
   return (
-    <section ref={sectionRef} aria-label="Mango Club" className="scroll-mt-4">
-      <div className="mg-sheen relative rounded-3xl bg-[var(--mg-ink)] p-4 text-white shadow-[0_18px_34px_-16px_rgba(26,26,26,0.7)]">
-        <span aria-hidden="true" className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full border-[18px] border-white/[0.06]" />
-        <span aria-hidden="true" className="pointer-events-none absolute -right-1 top-16 h-12 w-12 rounded-full border-[7px] border-white/[0.06]" />
+    <form
+      role="tabpanel"
+      id="panel-profile"
+      aria-labelledby="tab-profile"
+      noValidate
+      className={`${CARD} space-y-5 p-5`}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (form.email && !emailOk(form.email)) {
+          setErr("Enter a valid email, like name@example.com.");
+          return;
+        }
+        setErr("");
+        onSave?.(form);
+        setSaved(true);
+      }}
+    >
+      <p className="text-[17px] font-semibold leading-snug">Complete your profile for personalised updates and loyalty benefits.</p>
+      <div>
+        <span className={FLABEL}>Mobile</span>
+        <p className="text-base font-semibold tabular-nums">{data.customer.mobile}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-5">
+        <label className="col-span-2 block">
+          <span className={FLABEL}>Full name</span>
+          <input className={FIELD} value={form.name} onChange={text("name")} autoComplete="name" />
+        </label>
+        <label className="col-span-2 block">
+          <span className={FLABEL}>Email</span>
+          <input type="email" className={FIELD} value={form.email} onChange={(e) => { setErr(""); text("email")(e); }} autoComplete="email" aria-invalid={!!err} />
+          {err && <span role="alert" className="mt-1.5 block text-[13px] font-semibold text-[var(--b-acc)]">{err}</span>}
+        </label>
+        <label className="block min-w-0">
+          <span className={FLABEL}>Birthday</span>
+          <input type="date" className={FIELD} value={form.birthday} onChange={text("birthday")} autoComplete="bday" />
+        </label>
+        <label className="block min-w-0">
+          <span className={FLABEL}>Anniversary</span>
+          <input type="date" className={FIELD} value={form.anniversary} onChange={text("anniversary")} />
+        </label>
+        <label className="col-span-2 block">
+          <span className={FLABEL}>Gender</span>
+          <select className={FIELD} value={form.gender} onChange={(e) => upd("gender", e.target.value)}>
+            <option value="">Select</option>
+            {GENDERS.map((g) => (<option key={g}>{g}</option>))}
+          </select>
+        </label>
+      </div>
+      <label className="flex items-center justify-between gap-4">
+        <span>
+          <span className="block text-[15px] font-semibold">New arrivals and offers</span>
+          <span className="block text-[13px] text-[var(--b-gray)]">Collections and member offers</span>
+        </span>
+        <input type="checkbox" checked={form.offers} onChange={(e) => upd("offers", e.target.checked)} className="h-6 w-6 shrink-0 accent-[var(--b-acc)]" />
+      </label>
+      <button type="submit" className={BTN}>Update</button>
+      <p aria-live="polite" className="min-h-5 text-center text-sm font-semibold">{saved ? "Profile updated." : ""}</p>
+    </form>
+  );
+}
 
-        <div className="relative flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="mg-display text-[10px] uppercase tracking-[0.22em] text-white/55">
-              Mango Club <span className={`${m} tracking-[0.14em]`}>· •••• {mobile.slice(-4)}</span>
-            </p>
-            <p className="mg-display mt-1.5 text-[36px] uppercase leading-none tracking-[0.04em]" style={foilText(tier.foil)}>
-              {tier.name}
-            </p>
+function CouponsPanel({ coupons }: { coupons: MangoCoupon[] }) {
+  const { copied, copy } = useCopy();
+  if (!coupons.length) {
+    return (
+      <div role="tabpanel" id="panel-coupons" aria-labelledby="tab-coupons" className="flex flex-col items-center border-2 border-dashed border-black/25 bg-white px-6 py-12 text-center" style={{ borderRadius: "var(--b-r)" }}>
+        <Icon name="ticket" className="h-10 w-10 text-[var(--b-acc)]" />
+        <p className={`${DISPLAY} mt-3 text-[22px] leading-none`}>No coupons available.</p>
+        <p className="mt-2 text-[15px] text-[var(--b-gray)]">Please check this section later.</p>
+      </div>
+    );
+  }
+  return (
+    <ul role="tabpanel" id="panel-coupons" aria-labelledby="tab-coupons" className="space-y-3">
+      {coupons.map((c) => (
+        <li key={c.code} className={`${CARD} p-4`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className={`${DISPLAY_NUM} text-[34px] leading-none`}>{c.value}</p>
+              <p className="mt-2 text-[15px] font-semibold leading-snug">{c.title}</p>
+              <p className="mt-0.5 text-[14px] leading-snug text-[var(--b-gray)]">{c.description}</p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="mg-display text-[26px] leading-none tabular-nums">{club.points.toLocaleString("en-IN")}</p>
-            <p className="mt-1 text-[11px] text-white/55">points</p>
+          <div className="mt-3 flex items-center justify-between gap-3 border-t border-dashed border-black/30 pt-3">
+            <div className="min-w-0">
+              <p className="text-[12px] text-[var(--b-gray)]">Valid till {c.validTill}</p>
+              <p className={`${MONO} text-[15px] font-bold tracking-[0.08em]`}>{c.code}</p>
+            </div>
+            <button type="button" onClick={() => copy(c.code)} aria-label={`Copy code ${c.code}`} className={CHIP_BTN}>
+              <Icon name={copied === c.code ? "check" : "copy"} className="h-4 w-4" />
+              {copied === c.code ? "Copied" : "Copy"}
+            </button>
           </div>
-        </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
-        <p className="relative mt-4 text-[12px] leading-snug text-white/75">
-          {next && toNext != null ? (
-            <>
-              <span className="mg-display tabular-nums text-white">{toNext.toLocaleString("en-IN")}</span> more points to{" "}
-              <span className="mg-display text-white">{next.name}</span>
-            </>
-          ) : (
-            "You are at the top tier"
-          )}
-        </p>
-
-        <div className="relative mt-3 px-2">
-          <div className="relative h-1.5 rounded-full bg-white/15">
-            <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${fill}%`, background: tier.foil }} />
-            {TIERS.map((t, i) => (
-              <span
-                key={t.name}
-                aria-hidden="true"
-                className={`absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[var(--mg-ink)] ${i <= idx ? "" : "bg-white/25"}`}
-                style={{ left: `${i * 50}%`, ...(i <= idx ? { background: t.foil } : null) }}
-              />
-            ))}
-          </div>
-          <div className="mt-2 grid grid-cols-3 text-[10px] uppercase tracking-[0.1em]">
-            {TIERS.map((t, i) => (
-              <span
-                key={t.name}
-                className={`mg-display ${i === 0 ? "text-left" : i === 1 ? "text-center" : "text-right"} ${i === idx ? "text-white" : "text-white/45"}`}
-              >
-                {t.name}
-              </span>
-            ))}
-          </div>
-        </div>
+function LoyaltyTabs({ data, earned, onSaveProfile }: { data: Receipt; earned: number; onSaveProfile?: (v: ProfileValues) => void }) {
+  const { club } = data;
+  const tabs = useMemo(
+    () =>
+      [
+        ...(club ? [{ id: "points" as TabId, label: "Points", icon: "coins" as IconName }] : []),
+        { id: "profile" as TabId, label: "Profile", icon: "user" as IconName },
+        ...(club ? [{ id: "coupons" as TabId, label: "Coupons", icon: "ticket" as IconName, badge: club.coupons.length }] : []),
+      ] as { id: TabId; label: string; icon: IconName; badge?: number }[],
+    [club],
+  );
+  const [tab, setTab] = useState<TabId>(tabs[0].id);
+  return (
+    <section aria-label={PROGRAM}>
+      <TabBar tabs={tabs} tab={tab} onChange={setTab} />
+      <div className="mt-5">
+        {tab === "points" && club && <PointsPanel club={club} mobile={data.customer.mobile} earned={earned} />}
+        {tab === "profile" && <ProfilePanel data={data} onSave={onSaveProfile} />}
+        {tab === "coupons" && club && <CouponsPanel coupons={club.coupons} />}
       </div>
     </section>
   );
 }
 
-/* ------------------------------- profile ----------------------------------------- */
-const GENDERS = ["Male", "Female", "Non-binary", "Prefer not to say"];
-
-function Toggle({ checked, onChange, disabled = false, label }: { checked: boolean; onChange?: (v: boolean) => void; disabled?: boolean; label: string }) {
+/* ------------------------------ receipt item row --------------------------------- */
+function PaperItem({ item, open, onToggle }: { item: MangoItem; open: boolean; onToggle: () => void }) {
+  const panelId = useId();
+  const gross = item.mrp * item.qty;
+  const pct = gross > 0 ? (item.discount / gross) * 100 : 0;
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      disabled={disabled}
-      onClick={() => onChange?.(!checked)}
-      className={`relative h-7 w-[52px] shrink-0 rounded-full border-2 transition-colors motion-reduce:transition-none ${
-        checked ? "border-[var(--mg-brown)] bg-[var(--mg-brown)]" : "border-[var(--mg-edge)] bg-white"
-      } ${disabled ? "opacity-70" : ""} ${onPaper}`}
-    >
-      <span
-        aria-hidden="true"
-        className={`absolute top-[3px] h-4 w-4 rounded-full transition-all motion-reduce:transition-none ${checked ? "left-[27px] bg-white" : "left-[3px] bg-[var(--mg-brown)]"}`}
-      />
-    </button>
+    <li className="border-b border-dashed border-black/40 py-3.5 last:border-b-0">
+      <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={panelId} className={`grid w-full grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 text-left ${FOCUS}`}>
+        <Tog open={open} />
+        <span className="min-w-0">
+          <span className={`${MONO} block text-[13px] font-semibold uppercase leading-snug`}>{item.name}</span>
+          <span className={`${MONO} mt-1 block text-xs text-[var(--b-gray)]`}>
+            QTY {item.qty} &nbsp; MRP {inr0(item.mrp)}
+            {pct > 0 && <> &nbsp; −{trim(pct)}%</>}
+          </span>
+        </span>
+        <span className="text-right">
+          <span className={`${MONO} block text-sm font-bold leading-snug tabular-nums`}>{inr(netOf(item))}</span>
+          {item.discount > 0 && <s className={`${MONO} block text-xs tabular-nums text-[var(--b-gray)]`}>{inr(gross)}</s>}
+        </span>
+      </button>
+      <Collapse open={open} id={panelId}>
+        <dl className={`${MONO} ml-9 mt-3 grid grid-cols-2 gap-2 text-xs`}>
+          {([
+            ["SKU", item.sku],
+            ["HSN", item.hsn],
+            ["Size", item.size],
+            ["UoM", "Pcs"],
+            ["Discount", `${trim(pct)}%`],
+            ["Saved", inr(item.discount)],
+          ] as [string, string][]).map(([k, v]) => (
+            <div key={k} className="min-w-0 bg-[var(--b-wash)] px-2.5 py-2" style={{ borderRadius: "var(--b-r-s)" }}>
+              <dt className="text-[var(--b-gray)]">{k}</dt>
+              <dd className="mt-0.5 break-words text-[13px] font-bold tabular-nums">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </Collapse>
+    </li>
   );
 }
 
-function ProfileCard({ data, onSave }: { data: MangoReceiptData; onSave?: (v: ProfileValues) => void }) {
-  const [form, setForm] = useState<ProfileValues>({
-    name: data.customer.name,
-    email: data.customer.email,
-    gender: "",
-    birthday: "",
-    anniversary: "",
-    offers: false,
-  });
-  const [saved, setSaved] = useState(false);
-  const [emailErr, setEmailErr] = useState("");
-  const upd = <K extends keyof ProfileValues>(k: K, v: ProfileValues[K]) => {
-    setSaved(false);
-    setForm((f) => ({ ...f, [k]: v }));
-  };
+/* ------------------------------ rate your visit ---------------------------------- */
+const RATING_WORDS = ["Poor", "Fair", "Good", "Very good", "Excellent"];
+const FEEDBACK_ROWS = [
+  { key: "service", label: "Service" },
+  { key: "product", label: "Product" },
+  { key: "sizes", label: "Sizes" },
+  { key: "value", label: "Value" },
+] as const;
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (form.email && !emailOk(form.email)) {
-      setEmailErr("Enter a valid email address, like name@example.com.");
-      return;
-    }
-    setEmailErr("");
-    onSave?.(form);
-    setSaved(true);
-  };
-
+function Stars({ value, onChange, size = "h-9 w-9", label }: { value: number; onChange: (n: number) => void; size?: string; label: string }) {
   return (
-    <section aria-label="Your profile" className={`rounded-3xl bg-white p-5 text-[var(--mg-brown)] ${lift}`}>
-      <Heading sub="Faster service and personalised updates.">Your profile</Heading>
-      <form onSubmit={submit} noValidate className="mt-5 space-y-5">
-        <label className="block">
-          <span className={fieldLabel}>Full name</span>
-          <input className={fieldInput} value={form.name} onChange={(e) => upd("name", e.target.value)} autoComplete="name" />
-        </label>
+    <div role="radiogroup" aria-label={label} className="flex gap-1.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button key={n} type="button" role="radio" aria-checked={value === n} aria-label={`${n} star${n > 1 ? "s" : ""}`} onClick={() => onChange(n)} className={`text-[var(--b-acc)] ${FOCUS}`}>
+          <svg viewBox="0 0 24 24" strokeWidth="1.6" strokeLinejoin="round" style={{ animationDelay: `${n * 0.2}s` }} className={`${size} stroke-current ${value === 0 ? "mg-star" : n <= value ? "fill-current" : "fill-transparent"}`}>
+            {PATHS.star}
+          </svg>
+        </button>
+      ))}
+    </div>
+  );
+}
 
-        <label className="block">
-          <span className={fieldLabel}>Email address</span>
-          <input
-            type="email"
-            className={fieldInput}
-            value={form.email}
-            onChange={(e) => {
-              setEmailErr("");
-              upd("email", e.target.value);
-            }}
-            autoComplete="email"
-            aria-invalid={!!emailErr}
-          />
-          {emailErr && (
-            <span role="alert" className="mt-1.5 block text-[13px] font-bold text-[var(--mg-ink)]">
-              {emailErr}
-            </span>
-          )}
-        </label>
+function FeedbackBox({ data, onSubmit }: { data: Receipt; onSubmit?: (v: FeedbackValues) => void }) {
+  const [overall, setOverall] = useState(0);
+  const [cats, setCats] = useState({ service: 0, product: 0, sizes: 0, value: 0 });
+  const [comment, setComment] = useState("");
+  const [done, setDone] = useState(false);
 
-        <div>
-          <span className={fieldLabel}>Mobile number</span>
-          <p className="text-base font-bold tabular-nums text-[var(--mg-ink)]">{data.customer.mobile}</p>
-        </div>
-
-        <fieldset>
-          <legend className={`${fieldLabel} mb-2`}>Gender</legend>
-          <div className="flex flex-wrap gap-2">
-            {GENDERS.map((g) => {
-              const on = form.gender === g;
-              return (
-                <button
-                  key={g}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => upd("gender", on ? "" : g)}
-                  className={`rounded-full border-2 px-3.5 py-1.5 text-[14px] transition-colors motion-reduce:transition-none ${onPaper} ${
-                    on
-                      ? "border-[var(--mg-ink)] bg-[var(--mg-ink)] text-white"
-                      : "border-[var(--mg-edge)] bg-white text-[var(--mg-brown-dark)] active:border-[var(--mg-ink)] [@media(hover:hover)]:hover:border-[var(--mg-ink)]"
-                  }`}
-                >
-                  {g}
-                </button>
-              );
-            })}
+  if (done) {
+    return (
+      <div className={`${CARD} p-5`} aria-live="polite">
+        <span className={`${DISPLAY} block text-[26px] leading-none`}>Thank you</span>
+        <p className="mt-2 text-[15px] text-[var(--b-gray)]">Your feedback has been shared with the {data.store.name} team.</p>
+      </div>
+    );
+  }
+  return (
+    <div className={`${CARD} p-5`}>
+      <span className={`${DISPLAY} block text-[28px] leading-none`}>Rate your visit</span>
+      <div className="mt-4">
+        <Stars value={overall} onChange={setOverall} label="Overall rating" />
+      </div>
+      <p className="mt-3 text-[15px] leading-snug text-[var(--b-gray)]" aria-live="polite">
+        {overall ? RATING_WORDS[overall - 1] : `Tell us about your shopping experience at ${BRAND}.`}
+      </p>
+      <Collapse open={overall > 0} id="feedback-more">
+        <form
+          className="space-y-4 pt-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit?.({ invoiceNo: data.invoiceNo, overall, categories: cats, comment });
+            setDone(true);
+          }}
+        >
+          <div className="space-y-3">
+            {FEEDBACK_ROWS.map((r) => (
+              <div key={r.key} className="flex items-center justify-between gap-3">
+                <span className="text-[15px] font-semibold">{r.label}</span>
+                <Stars size="h-7 w-7" label={`${r.label} rating`} value={cats[r.key]} onChange={(n) => setCats((c) => ({ ...c, [r.key]: n }))} />
+              </div>
+            ))}
           </div>
-        </fieldset>
-
-        <div className="grid grid-cols-2 gap-x-4 gap-y-5">
-          <label className="block min-w-0">
-            <span className={fieldLabel}>Birthday</span>
-            <input type="date" className={fieldInput} value={form.birthday} onChange={(e) => upd("birthday", e.target.value)} autoComplete="bday" />
-            <span className="mt-1 block text-[12px]">For birthday offers</span>
+          <label className="block">
+            <span className={FLABEL}>Anything else? (optional)</span>
+            <textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} className={`${FIELD} resize-none`} />
           </label>
-          <label className="block min-w-0">
-            <span className={fieldLabel}>Anniversary</span>
-            <input type="date" className={fieldInput} value={form.anniversary} onChange={(e) => upd("anniversary", e.target.value)} />
-            <span className="mt-1 block text-[12px]">Optional</span>
-          </label>
-        </div>
-
-        <fieldset>
-          <legend className={`${fieldLabel} mb-1`}>Communication preferences</legend>
-          <ul className="border-y-2 border-[var(--mg-ink)]">
-            <li className="flex items-center justify-between gap-4 border-b border-dashed border-black/40 py-3.5">
-              <div>
-                <p className="text-[15px] font-bold text-[var(--mg-ink)]">Purchase and order updates</p>
-                <p className="mt-0.5 text-[13px] leading-snug">Receipts and return confirmations. Always on.</p>
-              </div>
-              <Toggle checked disabled label="Purchase and order updates, always on" />
-            </li>
-            <li className="flex items-center justify-between gap-4 py-3.5">
-              <div>
-                <p className="text-[15px] font-bold text-[var(--mg-ink)]">New arrivals and offers</p>
-                <p className="mt-0.5 text-[13px] leading-snug">Collections, member offers and seasonal edits.</p>
-              </div>
-              <Toggle checked={form.offers} onChange={(v) => upd("offers", v)} label="New arrivals and offers" />
-            </li>
-          </ul>
-        </fieldset>
-
-        <div>
-          <button type="submit" className={solidBtn}>
-            {saved ? (
-              <>
-                <Icon name="check" className="h-4 w-4" /> Details saved
-              </>
-            ) : (
-              "Save details"
-            )}
-          </button>
-          <p className="mt-3 text-center text-[12px] leading-relaxed">
-            Your information is used only for purchase communication and personalisation. We never share your data with third parties.
-          </p>
-          <span className="sr-only" aria-live="polite">
-            {saved ? "Details saved" : ""}
-          </span>
-        </div>
-      </form>
-    </section>
+          <button type="submit" className={BTN}>Submit feedback</button>
+        </form>
+      </Collapse>
+    </div>
   );
 }
 
 /* ------------------------------ receipt view ------------------------------------- */
 interface ReceiptViewProps extends Omit<MangoReceiptProps, "data" | "receipts" | "onSelectReceipt"> {
-  data: MangoReceiptData;
-  history: HistoryRow[];
+  data: Receipt;
+  history: { invoiceNo: string; date: string; store: string; amount: number; current: boolean }[];
   onSelect: (invoiceNo: string) => void;
 }
 
-function ReceiptView({
-  data,
-  history,
-  onSelect,
-  qrSrc,
-  logoSrc = DEFAULT_MANGO_LOGO,
-  rdepLogoSrc = DEFAULT_RDEP_LOGO,
-  instagramUrl = DEFAULT_INSTAGRAM_URL,
-  storeLocatorUrl = DEFAULT_STORE_LOCATOR_URL,
-  onDownload,
-  onSendEmail,
-  onSaveProfile,
-  onSubmitFeedback,
-}: ReceiptViewProps) {
+function ReceiptView({ data, history, onSelect, qrSrc, barcodeSrc, logoSrc = DEFAULT_LOGO, rdepLogoSrc = DEFAULT_RDEP_LOGO, onDownload, onSendEmail, onSaveProfile, onSubmitFeedback, onRefer }: ReceiptViewProps) {
   const [openItem, setOpenItem] = useState(-1);
   const [modal, setModal] = useState<ModalId>(null);
-  const [exchangeOpen, setExchangeOpen] = useState(false);
-  const [contactOpen, setContactOpen] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(true);
+  const [storeOpen, setStoreOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [sentTo, setSentTo] = useState("");
-  const [emailErr, setEmailErr] = useState("");
   const closeModal = useCallback(() => setModal(null), []);
-  const exchangeId = useId();
-  const contactId = useId();
-  const clubRef = useRef<HTMLElement>(null);
+  const termsId = useId();
+  const storeId = useId();
   const scale = useFitScale();
-  const m = monoClass;
 
-  const { store, exchange, club } = data;
+  const { store, club, exchange } = data;
   const t = useMemo(() => totalsOf(data), [data]);
-  const firstName = data.customer.name.trim().split(/\s+/)[0] || data.customer.name;
-  const nameSize = Math.min(38, Math.max(24, Math.floor(330 / (0.72 * (firstName.length + 1)))));
-  const tier = club ? TIERS.find((x) => x.name === club.tier) ?? TIERS[0] : null;
+  const earned = club?.pointsEarned ?? Math.floor(t.total / 10);
+  const referral = data.referral;
+  const shareText = referral
+    ? `Hey! Use my referral code ${referral.code} at ${BRAND}${referral.link ? ` (${referral.link})` : ""}. We both earn ${inr0(referral.rewardPoints)} reward points once you register. T&C apply.`
+    : "";
+  const whatsappHref = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+  const mapsHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${store.name}, ${store.address}`)}`;
   const handleDownload = () => (onDownload ? onDownload(data) : downloadReceipt(data, logoSrc, rdepLogoSrc));
 
   return (
-    <div
-      style={theme}
-      onTouchStart={() => {}} /* lets :active press states fire on iOS Safari */
-      className="mg-root min-h-screen overflow-x-hidden bg-[var(--mg-page)] text-[var(--mg-brown)] antialiased [-webkit-text-size-adjust:100%] sm:py-8"
-    >
+    <div style={theme} onTouchStart={() => {}} className={`${ROOT_CLASS} min-h-screen overflow-x-hidden bg-[var(--b-page)] text-[var(--b-ink)] antialiased [-webkit-text-size-adjust:100%] sm:py-8`}>
       <style>{FONT_FACES}</style>
 
-      <main
-        style={zoomStyle(scale)}
-        className="mx-auto w-[400px] overflow-hidden bg-[var(--mg-canvas)] pb-0 sm:rounded-3xl sm:shadow-[0_24px_60px_-24px_rgba(26,26,26,0.3)]"
-      >
-        {/* ---------- Compact black hero ---------- */}
-        <header className="relative overflow-hidden rounded-b-[32px] bg-[var(--mg-ink)] px-5 pb-14 pt-5 text-white">
-          <span aria-hidden="true" className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full border-[20px] border-white/[0.06]" />
-          <span aria-hidden="true" className="pointer-events-none absolute -right-2 top-20 h-12 w-12 rounded-full border-[8px] border-white/[0.06]" />
+      <main style={zoomStyle(scale)} className={MAIN_CLASS}>
+        {/* 1. Greeting */}
+        <Hero data={data} logoSrc={logoSrc} chip={club ? <TierChip tier={club.tier} /> : null} />
 
-          <div className="relative flex items-center justify-between gap-4">
-            <BrandImage
-              src={logoSrc}
-              alt="MANGO"
-              width={320}
-              height={80}
-              priority
-              className="h-8 w-auto max-w-[46%] shrink-0 object-contain object-left brightness-0 invert"
-              fallbackClassName="mg-display inline-block text-[24px] uppercase leading-none tracking-[0.12em] text-white"
-            />
-            {club && tier && (
-              <button
-                type="button"
-                onClick={() => clubRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                aria-label={`${club.tier} member. View Mango Club`}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--mg-ink)]"
-                style={{ background: tier.foil }}
-              >
-                <Icon name="star" className="h-3.5 w-3.5" />
-                {club.tier}
-              </button>
-            )}
-          </div>
-
-          <h1 className="relative mt-5 uppercase">
-            <span className="mg-display block text-[11px] leading-none tracking-[0.26em] text-[var(--mg-sand)]">Thank you</span>
-            <span className="mg-display mt-2 block leading-[1.02] tracking-[0.02em] [overflow-wrap:anywhere]" style={{ fontSize: nameSize }}>
-              {firstName}
-            </span>
-          </h1>
-          <p className="relative mt-1.5 truncate text-[13px] normal-case text-white/65">Smart receipt · {store.name}</p>
-        </header>
-
-        {/* ---------- Feedback card, overlapping the hero ---------- */}
-        <div className="relative z-10 -mt-9 px-4">
-          <SleekRateCard data={data} onSubmit={onSubmitFeedback} />
+        <div className="space-y-7 px-4 pt-7">
+          {/* 2. Video / banners */}
+          <MarketingCarousel />
+          {/* 3. Points | Profile | Coupons */}
+          <LoyaltyTabs data={data} earned={earned} onSaveProfile={onSaveProfile} />
         </div>
 
-        {/* ---------- Total paid ---------- */}
-        <div className="mt-4 px-4">
-          <section aria-label="Total paid" className={`rounded-3xl bg-white p-4 text-[var(--mg-ink)] ${lift}`}>
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[13px] text-[var(--mg-brown)]">Total paid</p>
-                <p className="mg-display mt-0.5 text-[32px] leading-none tabular-nums">₹{inr(t.total)}</p>
+        {/* 4. The receipt */}
+        <section aria-label="Receipt" className={PAPER_WRAP} style={{ filter: PAPER_SHADOW }}>
+          <PaperEdge />
+          <div className={PAPER_BODY}>
+            <div className="flex items-center justify-between gap-4">
+              <h2 className={`${DISPLAY} text-[30px] leading-none`}>Tax invoice</h2>
+              <div className="h-12 w-12 shrink-0 overflow-hidden bg-white ring-1 ring-black/25">
+                {qrSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={qrSrc} alt="Receipt QR code" className="h-full w-full object-contain" />
+                ) : (
+                  <PlaceholderQR seed={data.invoiceNo} />
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => setModal("qr")}
-                aria-label="View QR code"
-                className="flex items-center gap-2 rounded-2xl border border-black/5 bg-[var(--mg-wash)] px-3 py-2.5 transition-colors active:bg-[var(--mg-press)]"
-              >
-                <div className="h-8 w-8 shrink-0 overflow-hidden rounded-md bg-white ring-1 ring-black/10">
-                  {qrSrc ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={qrSrc} alt="Receipt QR code" className="h-full w-full object-contain" />
-                  ) : (
-                    <PlaceholderQR seed={data.invoiceNo} />
-                  )}
-                </div>
-                <div className="text-left">
-                  <span className="mg-display block text-[10px] uppercase tracking-wider text-[var(--mg-ink)]">QR Code</span>
-                  <span className="text-[10px] font-medium text-[var(--mg-brown)]">Tap to view</span>
-                </div>
-              </button>
             </div>
-            <dl className={`${m} mt-3 space-y-1 border-t border-dashed border-black/40 pt-3 text-xs text-[var(--mg-brown)]`}>
-              <Leader label="Invoice no" value={data.invoiceNo} strong />
-              <Leader label="Date" value={data.date} strong />
-            </dl>
-          </section>
-        </div>
 
-        {/* ---------- The receipt: thermal paper ---------- */}
-        <section
-          aria-label="Purchase summary"
-          className="mx-3 mt-6 text-[var(--mg-brown)]"
-          style={{ filter: "drop-shadow(0 12px 14px rgba(26,26,26,0.16))" }}
-        >
-          <ZigZag />
-          <div className="bg-white px-5 pb-6 pt-4">
-            <h2 className="mg-display text-[22px] uppercase leading-[1.1] tracking-[0.05em] text-[var(--mg-ink)]">Purchase summary</h2>
-            <p className={`${m} mt-2 text-xs`}>
-              {t.pieces} {t.pieces === 1 ? "item" : "items"}
-            </p>
-
-            <div className={`${m} mt-4 flex justify-between border-y-2 border-[var(--mg-ink)] py-2 text-xs font-semibold uppercase tracking-wide text-[var(--mg-ink)]`}>
-              <span>Item name</span>
+            <div className={`${MONO} mt-4 flex justify-between border-y-2 border-[var(--b-ink)] py-2 text-xs font-semibold uppercase tracking-wide`}>
+              <span>Item</span>
               <span>Net amount</span>
             </div>
             <ul aria-label="Items purchased">
@@ -1577,422 +1347,197 @@ function ReceiptView({
               ))}
             </ul>
 
-            <dl className={`${m} space-y-2 border-t-2 border-[var(--mg-ink)] pt-3.5 text-sm`}>
-              <Leader label="Subtotal (MRP)" value={`₹${inr(t.subtotal)}`} strong />
-              <Leader label="Discount" value={`− ₹${inr(t.discount)}`} strong />
-              <Leader label="SGST" value={`₹${inr(data.sgst)}`} strong />
-              <Leader label="CGST" value={`₹${inr(data.cgst)}`} strong />
+            <dl className={`${MONO} space-y-2 border-t-2 border-[var(--b-ink)] pt-3.5 text-sm`}>
+              <Leader label="Subtotal (MRP)" value={inr(t.subtotal)} strong />
+              {t.discount > 0 && <Leader label="Discount" value={`− ${inr(t.discount)}`} strong />}
+              <Leader label="SGST" value={`+ ${inr(data.sgst)}`} strong />
+              <Leader label="CGST" value={`+ ${inr(data.cgst)}`} strong />
             </dl>
 
-            {/* black total band */}
-            <div className="mt-4 rounded-2xl bg-[var(--mg-ink)] px-4 py-4 text-white">
-              <div className="flex items-end justify-between gap-3">
-                <span className="mg-display text-[13px] uppercase tracking-[0.14em] text-[var(--mg-sand)]">Total paid</span>
-                <span className="mg-display text-[34px] leading-none tabular-nums">₹{inr(t.total)}</span>
+            <div className={NET_WRAP}>
+              <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+                <span className={`${DISPLAY} text-lg leading-none`}>Net total</span>
+                <span className={`${DISPLAY_NUM} ${NET_AMT} leading-none tabular-nums`}>₹{inr(t.total)}</span>
               </div>
-              {t.discount > 0 && <p className="mt-2.5 text-[12px] text-[var(--mg-sand)]">You saved ₹{inr(t.discount)} on this purchase</p>}
             </div>
+            <p className={`${MONO} mt-2.5 text-xs text-[var(--b-gray)]`}>Pieces purchased: {t.pieces}</p>
 
-            <h3 className="mg-display mt-5 text-[15px] uppercase leading-none tracking-[0.06em] text-[var(--mg-ink)]">Payment method</h3>
-            <div className={`${m} mt-3 flex items-baseline justify-between gap-3 rounded-xl border-2 border-dashed border-black/30 bg-white px-4 py-3.5 text-[var(--mg-ink)]`}>
-              <span className="text-sm">
-                {data.payment.mode} &ndash; {data.payment.ref}
-              </span>
-              <span className="text-base font-bold tabular-nums">₹{inr(t.total)}</span>
-            </div>
+            <dl className={`${MONO} mt-5 space-y-1.5 border-t border-dashed border-black/40 pt-4 text-xs`}>
+              <Leader label="Invoice no" value={data.invoiceNo} strong />
+              <Leader label="Date" value={data.date} strong />
+              <Leader label="Associate" value={store.associate} strong />
+            </dl>
 
-            <div className="mt-6 grid grid-cols-3 gap-2">
-              {(
-                [
-                  { icon: "history", label: "History", onClick: () => setModal("history") },
-                  { icon: "mail", label: "Email", onClick: () => setModal("email") },
-                  { icon: "download", label: "Download", onClick: handleDownload },
-                ] as { icon: IconName; label: string; onClick: () => void }[]
-              ).map((a) => (
-                <button
-                  key={a.label}
-                  type="button"
-                  onClick={a.onClick}
-                  className={`flex flex-col items-center gap-2 rounded-xl border-2 border-[var(--mg-ink)] px-1 py-3.5 text-center text-[11px] font-bold uppercase leading-tight tracking-[0.08em] text-[var(--mg-ink)] transition-colors active:bg-[var(--mg-ink)] [@media(hover:hover)]:hover:bg-[var(--mg-ink)] active:text-white [@media(hover:hover)]:hover:text-white motion-reduce:transition-none ${onPaper}`}
-                >
-                  <Icon name={a.icon} className="h-5 w-5" />
-                  {a.label}
+            <h3 className={`${DISPLAY} mt-5 text-[20px] leading-none`}>Payment</h3>
+            <dl className={`${MONO} mt-3 space-y-2 text-sm`}>
+              <Leader label={`${data.payment.mode} · ${data.payment.ref}`} value={inr(t.total)} strong />
+            </dl>
+
+            <div className="mt-6 grid grid-cols-3 gap-2.5">
+              {([
+                { icon: "history", label: "History", onClick: () => setModal("history") },
+                { icon: "mail", label: "Email", onClick: () => setModal("email") },
+                { icon: "download", label: "Download", onClick: handleDownload },
+              ] as { icon: IconName; label: string; onClick: () => void }[]).map((a) => (
+                <button key={a.label} type="button" onClick={a.onClick} className={ACTION_BTN}>
+                  <Icon name={a.icon} className="h-5 w-5 shrink-0" />
+                  <span className="max-w-full truncate">{a.label}</span>
                 </button>
               ))}
             </div>
           </div>
-          <ZigZag down />
+          <PaperEdge down />
         </section>
 
-        {/* ---------- After the receipt: video, coupons, loyalty, profile, the rest ---------- */}
-        <div className="space-y-6 px-4 pt-7">
-          <VideoCard />
+        <div className="space-y-7 px-4 pt-9">
+          {/* 5. Rate your visit */}
+          <FeedbackBox data={data} onSubmit={onSubmitFeedback} />
 
-          {club && <CouponsSection coupons={club.coupons} />}
-
-          {club && <TierCard club={club} mobile={data.customer.mobile} sectionRef={clubRef} />}
-
-          <ProfileCard data={data} onSave={onSaveProfile} />
-
-          {/* Exchange */}
-          <section aria-label="Exchange" className={`rounded-3xl bg-white text-[var(--mg-brown)] ${lift}`}>
-            <h2>
-              <button
-                type="button"
-                onClick={() => setExchangeOpen((o) => !o)}
-                aria-expanded={exchangeOpen}
-                aria-controls={exchangeId}
-                className={`flex w-full items-center justify-between gap-4 rounded-3xl p-4 text-left active:bg-[var(--mg-wash)] ${onPaper}`}
-              >
-                <span>
-                  <span className="mg-display block text-[20px] uppercase leading-[1.1] tracking-[0.05em] text-[var(--mg-ink)]">Exchange</span>
-                  <span className="mt-1.5 block text-[14px] font-normal">{exchange.days}-day exchange policy</span>
-                </span>
-                <span aria-hidden="true" className={`${m} text-sm font-bold text-[var(--mg-ink)]`}>
-                  [{exchangeOpen ? "−" : "+"}]
-                </span>
-              </button>
-            </h2>
-            <Collapse open={exchangeOpen} id={exchangeId}>
-              <ol className={`${m} list-decimal space-y-2.5 border-t border-dashed border-black/40 py-4 pl-10 pr-5 text-xs leading-relaxed`}>
-                {exchange.points.map((p) => (
-                  <li key={p}>{p}</li>
-                ))}
-              </ol>
-            </Collapse>
-          </section>
-
-          {/* Reach us */}
-          <section aria-label="Reach us">
-            <h2 className="mg-display text-[20px] uppercase leading-[1.1] tracking-[0.05em] text-[var(--mg-ink)]">Reach us</h2>
-            <p className="mt-1.5 text-[14px] text-[var(--mg-brown-dark)]">Get in touch or find us online.</p>
-            <div className="mt-4 grid grid-cols-3 gap-3">
-              <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className={`${outlineBtn} flex-col gap-1.5 !px-1 !py-3 !text-[11px]`}>
-                <Icon name="instagram" className="h-[18px] w-[18px]" />
-                Instagram
-              </a>
-              <a href={`tel:${data.callTo}`} className={`${outlineBtn} flex-col gap-1.5 !px-1 !py-3 !text-[11px]`}>
-                <Icon name="phone" className="h-[18px] w-[18px]" />
-                Call us
-              </a>
-              <a href={`mailto:${data.emailTo}`} className={`${outlineBtn} flex-col gap-1.5 !px-1 !py-3 !text-[11px]`}>
-                <Icon name="mail" className="h-[18px] w-[18px]" />
-                Email us
-              </a>
-            </div>
-
-            <a
-              href={storeLocatorUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group mt-3 flex items-center justify-between gap-4 rounded-3xl bg-[var(--mg-ink)] p-4 text-white shadow-[0_14px_28px_-14px_rgba(26,26,26,0.7)] transition-colors active:bg-white [@media(hover:hover)]:hover:bg-white active:text-[var(--mg-ink)] [@media(hover:hover)]:hover:text-[var(--mg-ink)] motion-reduce:transition-none"
-            >
+          {/* 6. Refer a friend */}
+          {referral && (
+            <a href={whatsappHref} target="_blank" rel="noopener noreferrer" onClick={() => onRefer?.(referral.code)} className={`${REFER_CARD} group flex items-center justify-between gap-4 p-5`}>
               <span>
-                <span className="mg-display block text-[17px] uppercase leading-[1.15] tracking-[0.05em]">Find a MANGO store</span>
-                <span className="mt-1.5 block text-[13px] leading-snug">Locate your nearest store in India</span>
+                <span className={`${DISPLAY} block text-[28px] leading-none`}>Refer a friend</span>
+                <span className="mt-2.5 block text-[15px] leading-snug">Refer a friend and both of you earn {inr0(referral.rewardPoints)} points</span>
+                <span className={`${MONO} mt-3 inline-block px-2.5 py-1 text-xs font-bold tracking-[0.1em] ${REFER_CODE}`}>{referral.code}</span>
               </span>
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-[var(--mg-ink)] transition-colors group-active:bg-[var(--mg-ink)] [@media(hover:hover)]:group-hover:bg-[var(--mg-ink)] group-active:text-white [@media(hover:hover)]:group-hover:text-white motion-reduce:transition-none">
-                <Icon name="arrow" className="h-5 w-5" />
+              <span className={`${REFER_ARROW} grid h-12 w-12 shrink-0 place-items-center rounded-full`}>
+                <Icon name="arrow" className="h-6 w-6" />
               </span>
             </a>
+          )}
+
+          {/* 7. Reach out to us */}
+          <section aria-label="Reach out to us">
+            <SectionTitle>Reach out to us</SectionTitle>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <a href={`tel:${data.callTo}`} className={BTN_OUT}>
+                <Icon name="phone" className="h-[18px] w-[18px]" />
+                Talk to us
+              </a>
+              <a href={`mailto:${data.emailTo}`} className={BTN_OUT}>
+                <Icon name="mail" className="h-[18px] w-[18px]" />
+                Write to us
+              </a>
+            </div>
           </section>
 
-          {/* ---------- Store card ---------- */}
-          <section aria-label="Store" className={`rounded-3xl bg-white p-5 text-[var(--mg-ink)] ${lift}`}>
-            <div className="flex items-center justify-between border-b border-[var(--mg-line)] pb-4">
-              <div className="flex items-center gap-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--mg-ink)] text-white shadow-sm">
-                  <Icon name="store" className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="mg-display text-[10px] uppercase tracking-[0.2em] text-[var(--mg-brown)]">Purchased at</p>
-                  <h2 className="mg-display text-[15px] uppercase leading-tight tracking-[0.04em] text-[var(--mg-ink)]">{store.name}</h2>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              <div className="flex items-start gap-3 rounded-2xl border border-black/5 bg-[var(--mg-wash)] p-3.5">
-                <Icon name="pin" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--mg-brown)]" />
-                <p className="text-[13px] font-medium leading-relaxed text-[var(--mg-ink)]">{store.address}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${store.name}, ${store.address}`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 rounded-xl border border-black/5 bg-[var(--mg-wash)] py-3 text-[12px] font-bold uppercase tracking-[0.05em] text-[var(--mg-ink)] transition-colors active:bg-[var(--mg-press)]"
-                >
-                  <Icon name="directions" className="h-4 w-4 text-[var(--mg-brown)]" />
-                  Directions
-                </a>
-                <a
-                  href={`tel:${store.phone}`}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-black/5 bg-[var(--mg-wash)] py-3 text-[12px] font-bold uppercase tracking-[0.05em] text-[var(--mg-ink)] transition-colors active:bg-[var(--mg-press)]"
-                >
-                  <Icon name="call" className="h-4 w-4 text-[var(--mg-brown)]" />
-                  Call store
-                </a>
-              </div>
-            </div>
-
-            <div className="mt-4 border-t border-[var(--mg-line)] pt-3">
-              <button
-                type="button"
-                onClick={() => setContactOpen((o) => !o)}
-                aria-expanded={contactOpen}
-                aria-controls={contactId}
-                className={`-mx-2 flex w-full items-center justify-between gap-2 rounded-xl p-2 transition-colors active:bg-[var(--mg-wash)] ${onPaper}`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--mg-ink)] text-white">
-                    <Icon name="chevron" className={`h-3.5 w-3.5 transition-transform duration-300 ${contactOpen ? "rotate-180" : ""}`} />
-                  </span>
-                  <span className="mg-display text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--mg-ink)]">
-                    {contactOpen ? "Hide contact & tax info" : "View contact & tax info"}
-                  </span>
-                </div>
-                <span className="text-[11px] font-medium text-[var(--mg-brown)]">{contactOpen ? "Less" : "Details"}</span>
-              </button>
-            </div>
-
-            <Collapse open={contactOpen} id={contactId}>
-              <div className="mt-3 space-y-2.5 border-t border-dashed border-[var(--mg-line)] pt-3">
-                <a href={`mailto:${store.email}`} className="flex items-center justify-between rounded-xl border border-black/5 bg-[var(--mg-wash)] p-3 active:bg-[var(--mg-press)]">
-                  <div className="flex items-center gap-3">
-                    <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-[var(--mg-brown)] shadow-sm">
-                      <Icon name="mail" className="h-4 w-4" />
-                    </span>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-[var(--mg-brown)]">Email support</p>
-                      <p className={`${m} text-[12px] font-bold text-[var(--mg-ink)]`}>{store.email}</p>
-                    </div>
-                  </div>
-                  <Icon name="arrow" className="h-3.5 w-3.5 text-[var(--mg-brown)]" />
-                </a>
-
-                <a href={`tel:${store.phone}`} className="flex items-center justify-between rounded-xl border border-black/5 bg-[var(--mg-wash)] p-3 active:bg-[var(--mg-press)]">
-                  <div className="flex items-center gap-3">
-                    <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-[var(--mg-brown)] shadow-sm">
-                      <Icon name="phone" className="h-4 w-4" />
-                    </span>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-[var(--mg-brown)]">Store phone</p>
-                      <p className={`${m} text-[12px] font-bold text-[var(--mg-ink)]`}>{store.phone}</p>
-                    </div>
-                  </div>
-                  <Icon name="arrow" className="h-3.5 w-3.5 text-[var(--mg-brown)]" />
-                </a>
-
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <div className="rounded-xl border border-black/5 bg-[var(--mg-wash)] p-3">
-                    <div className="mb-1 flex items-center gap-1.5 text-[var(--mg-brown)]">
-                      <Icon name="user" className="h-3.5 w-3.5" />
-                      <p className="text-[10px] font-bold uppercase">Associate</p>
-                    </div>
-                    <p className="mg-display text-[13px] text-[var(--mg-ink)]">{store.associate}</p>
-                  </div>
-
-                  <div className="rounded-xl border border-black/5 bg-[var(--mg-wash)] p-3">
-                    <div className="mb-1 flex items-center gap-1.5 text-[var(--mg-brown)]">
-                      <Icon name="tax" className="h-3.5 w-3.5" />
-                      <p className="text-[10px] font-bold uppercase">GSTIN</p>
-                    </div>
-                    <p className={`${m} truncate text-[11px] font-bold text-[var(--mg-ink)]`} title={store.gstin}>
-                      {store.gstin}
-                    </p>
-                  </div>
-                </div>
-              </div>
+          {/* 8. Store */}
+          <StoreShell>
+            <h2 className={`${DISPLAY} text-[24px] leading-none`}>{store.name}</h2>
+            <p className="mt-4 flex items-start gap-2.5 text-base font-semibold leading-snug">
+              <Icon name="pin" className="mt-0.5 h-5 w-5 shrink-0" />
+              {store.address}
+            </p>
+            <a href={mapsHref} target="_blank" rel="noopener noreferrer" className={`mt-2.5 inline-flex items-center gap-1.5 text-[13px] font-bold uppercase tracking-[0.1em] underline underline-offset-4 ${FOCUS}`}>
+              Directions <Icon name="arrow" className="h-3.5 w-3.5" />
+            </a>
+            <button type="button" onClick={() => setStoreOpen((o) => !o)} aria-expanded={storeOpen} aria-controls={storeId} className={`${MONO} mt-4 flex w-full items-center justify-between border-t-2 border-current pt-3 text-left text-sm font-semibold uppercase tracking-wide ${FOCUS}`}>
+              <span>Store details</span>
+              <span aria-hidden="true" className="font-bold">[{storeOpen ? "−" : "+"}]</span>
+            </button>
+            <Collapse open={storeOpen} id={storeId}>
+              <dl className={`${MONO} space-y-2 pb-1 pt-3 text-sm`}>
+                <Leader label="Phone" value={<a href={`tel:${store.phone}`} className="underline underline-offset-4">{store.phone}</a>} strong />
+                <Leader label="Email" value={<a href={`mailto:${store.email}`} className="break-all underline underline-offset-4">{store.email}</a>} strong />
+                {store.gstin && <Leader label="GSTIN" value={store.gstin} strong />}
+                <Leader label="Associate" value={store.associate} strong />
+              </dl>
             </Collapse>
-          </section>
-
-          {/* ---------- Light closing card ---------- */}
-          <section className={`rounded-3xl bg-white p-5 text-[var(--mg-ink)] ${lift}`}>
-            <div className="flex items-center justify-between">
-              <BrandImage
-                src={logoSrc}
-                alt="MANGO"
-                width={320}
-                height={80}
-                className="h-7 w-auto max-w-[55%] object-contain object-left"
-                fallbackClassName="mg-display inline-block text-[22px] uppercase leading-none tracking-[0.12em] text-[var(--mg-ink)]"
-              />
-              <span className="rounded-full border border-black/5 bg-[var(--mg-wash)] px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[var(--mg-brown)]">
-                Official Receipt
-              </span>
-            </div>
-
-            <div className="mt-5">
-              <h2 className="mg-display text-[19px] uppercase leading-[1.1] tracking-[0.04em] text-[var(--mg-ink)]">Thank you</h2>
-              <p className="mt-1 text-[14px] font-medium text-[var(--mg-brown)]">For shopping with us. See you in store soon.</p>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-black/5 bg-[var(--mg-wash)] p-3.5">
-              <h3 className="mg-display text-[10px] uppercase tracking-[0.18em] text-[var(--mg-brown)]">Registered office</h3>
-              <p className={`${m} mt-1.5 text-[11px] leading-relaxed text-[var(--mg-ink)]`}>{data.registeredOffice}</p>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between border-t border-[var(--mg-line)] pt-3.5">
-              <p className={`${m} text-[11px] text-[var(--mg-brown)]`}>
-                Invoice: <strong className="text-[var(--mg-ink)]">{data.invoiceNo}</strong>
-              </p>
-              <button
-                type="button"
-                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                aria-label="Back to top"
-                className={`flex items-center gap-1.5 rounded-full bg-[var(--mg-ink)] px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-white active:bg-[var(--mg-brown)] ${onPaper}`}
-              >
-                Top <Icon name="arrow" className="h-3.5 w-3.5 -rotate-90" />
-              </button>
-            </div>
-          </section>
+            <p className={`mt-3 border-t border-dashed ${STORE_LINE} pt-3 text-xs leading-relaxed opacity-80`}>
+              <span className="font-bold">Registered office: </span>
+              {data.registeredOffice}
+            </p>
+          </StoreShell>
         </div>
 
-        {/* ---------- Footer: "Powered by" strip ---------- */}
-        <footer className="mt-7 flex items-center justify-center gap-2.5 border-t border-black/5 bg-white px-5 py-4 text-[13px] text-[var(--mg-brown)]">
-          <span>Powered by</span>
-          <BrandImage
-            src={rdepLogoSrc}
-            alt="rdep"
-            width={240}
-            height={80}
-            className="h-7 w-auto"
-            fallbackClassName="text-lg font-bold tracking-tight text-[var(--mg-ink)]"
-          />
-        </footer>
-      </main>
-
-      {/* ---------------------------- Transaction History Popup ---------------------------- */}
-      {modal === "history" && (
-        <Modal title="TRANSACTION HISTORY" onClose={closeModal} scale={scale}>
-          <div className="mb-4 flex items-center justify-between rounded-2xl border border-black/5 bg-[var(--mg-wash)] p-4">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--mg-brown)]">Total receipts</p>
-              <p className="mg-display text-[18px] text-[var(--mg-ink)]">{history.length} recorded</p>
+        {/* 9. Terms, barcode, powered by */}
+        <StubShell>
+          <h2>
+            <button type="button" aria-expanded={termsOpen} aria-controls={termsId} onClick={() => setTermsOpen((o) => !o)} className={`flex w-full items-center justify-between py-2 text-left ${FOCUS}`}>
+              <span className={`${DISPLAY} text-[22px] leading-none`}>Terms and conditions</span>
+              <span aria-hidden="true" className={`${MONO} text-sm font-bold`}>[{termsOpen ? "−" : "+"}]</span>
+            </button>
+          </h2>
+          <Collapse open={termsOpen} id={termsId}>
+            <div className={`${MONO} space-y-3 pb-4 pt-3 text-xs leading-relaxed opacity-80`}>
+              <ol className="list-decimal space-y-2.5 pl-5">
+                {exchange.points.map((p) => (<li key={p}>{p}</li>))}
+              </ol>
+              <p>Customer care: {data.callTo} · {data.emailTo}</p>
             </div>
-            <div className="text-right">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--mg-brown)]">Active view</p>
-              <p className={`${m} text-[12px] font-bold text-[var(--mg-ink)]`}>#{data.invoiceNo.slice(-4)}</p>
-            </div>
-          </div>
+          </Collapse>
 
-          <ol className="space-y-3">
-            {history.map((h) => (
-              <li key={h.invoiceNo}>
-                <div
-                  className={`flex items-center justify-between gap-3 rounded-2xl border p-4 transition-colors ${
-                    h.current
-                      ? "border-[var(--mg-ink)] bg-[var(--mg-ink)] text-white shadow-md"
-                      : "border-black/5 bg-[var(--mg-wash)] text-[var(--mg-ink)] [@media(hover:hover)]:hover:border-[var(--mg-brown)]"
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`mg-display text-[13px] uppercase ${h.current ? "text-white" : "text-[var(--mg-ink)]"}`}>No. {h.invoiceNo}</span>
-                      {h.current && (
-                        <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">Current</span>
-                      )}
-                    </div>
-                    <p className={`mt-1 truncate text-[12px] ${h.current ? "text-white/80" : "text-[var(--mg-brown)]"}`}>
-                      {h.date} &middot; {h.storeName}
-                    </p>
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-3">
-                    <div className="text-right">
-                      <span className={`${m} block text-[15px] font-bold tabular-nums ${h.current ? "text-white" : "text-[var(--mg-ink)]"}`}>₹{inr(h.amount)}</span>
-                      <span className={`block text-[10px] ${h.current ? "text-white/70" : "text-[var(--mg-brown)]"}`}>
-                        {h.items} {h.items === 1 ? "pc" : "pcs"}
-                      </span>
-                    </div>
-
-                    {!h.current && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          closeModal();
-                          onSelect(h.invoiceNo);
-                        }}
-                        aria-label={`Open receipt ${h.invoiceNo}`}
-                        className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-black/10 bg-white text-[var(--mg-ink)] shadow-sm"
-                      >
-                        <Icon name="arrow" className="h-4 w-4 text-[var(--mg-brown)]" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </Modal>
-      )}
-
-      {/* ---------------------------- QR Code Popup ---------------------------- */}
-      {modal === "qr" && (
-        <Modal title="RECEIPT QR CODE" onClose={closeModal} scale={scale}>
-          <div className="flex flex-col items-center py-2 text-center">
-            <div className="mb-4 flex h-48 w-48 items-center justify-center rounded-2xl border border-black/10 bg-white p-3 shadow-inner">
-              {qrSrc ? (
+          <div className={`mt-5 flex flex-col items-center gap-4 border-t border-dashed ${STUB_LINE} pt-6`}>
+            <div className="flex w-full justify-center bg-white px-4 py-3" style={{ borderRadius: "var(--b-r-s)" }}>
+              {barcodeSrc ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={qrSrc} alt="Receipt QR code" className="h-full w-full object-contain" />
+                <img src={barcodeSrc} alt="Receipt barcode" className="h-14 w-full max-w-xs object-contain" />
               ) : (
-                <PlaceholderQR seed={data.invoiceNo} />
+                <PlaceholderBarcode seed={data.invoiceNo} />
               )}
             </div>
-            <p className="mg-display text-[14px] uppercase tracking-wider text-[var(--mg-ink)]">Invoice #{data.invoiceNo}</p>
-            <p className="mt-1 text-[13px] text-[var(--mg-brown)]">Scan this code at the store counter for instant returns or inquiries.</p>
+            <p className="text-[13px] opacity-80">Thank you for shopping at {BRAND}.</p>
+            <div className="flex items-center gap-3 text-[13px] opacity-80">
+              <span>Powered by</span>
+              <BrandImage src={rdepLogoSrc} alt="rdep" width={240} height={80} className="h-8 w-auto" fallbackClassName="text-xl font-extrabold tracking-tight" />
+            </div>
           </div>
+        </StubShell>
+      </main>
+
+      {/* Popups */}
+      {modal === "history" && (
+        <Modal title="Transaction history" onClose={closeModal} scale={scale}>
+          <ul className="divide-y divide-black/15">
+            {history.map((h) => (
+              <li key={h.invoiceNo}>
+                <button
+                  type="button"
+                  disabled={h.current}
+                  onClick={() => {
+                    closeModal();
+                    onSelect(h.invoiceNo);
+                  }}
+                  className={`flex w-full items-center justify-between gap-3 py-3.5 text-left ${FOCUS} ${h.current ? "cursor-default" : "active:bg-[var(--b-wash)] [@media(hover:hover)]:hover:bg-[var(--b-wash)]"}`}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-base font-semibold">
+                      Invoice no: <span className={`${MONO} font-bold`}>{h.invoiceNo}</span>
+                    </span>
+                    <span className="mt-0.5 block text-sm text-[var(--b-gray)]">{h.date}, {h.store}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span className="text-right">
+                      <span className={`${MONO} block text-base font-bold tabular-nums`}>₹{inr(h.amount)}</span>
+                      {h.current && <span className={`${CHIP_ON} mt-1 inline-block px-2.5 py-0.5 text-xs font-bold`}>This receipt</span>}
+                    </span>
+                    {!h.current && <Icon name="arrow" className="h-4 w-4 text-[var(--b-acc)]" />}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </Modal>
       )}
 
-      {/* ---------------------------- Email Popup ---------------------------- */}
       {modal === "email" && (
         <Modal title="Email this receipt" onClose={closeModal} scale={scale}>
           <form
             className="space-y-5"
-            noValidate
             onSubmit={(e) => {
               e.preventDefault();
-              if (!emailOk(email)) {
-                setEmailErr("Enter a valid email address, like name@example.com.");
-                return;
-              }
-              setEmailErr("");
               onSendEmail?.(email, data);
               setSentTo(email);
             }}
           >
             <label className="block">
-              <span className={fieldLabel}>Email address</span>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  setSentTo("");
-                  setEmailErr("");
-                  setEmail(e.target.value);
-                }}
-                className={fieldInput}
-                autoComplete="email"
-                aria-invalid={!!emailErr}
-              />
-              {emailErr && (
-                <span role="alert" className="mt-1.5 block text-[13px] font-bold text-[var(--mg-ink)]">
-                  {emailErr}
-                </span>
-              )}
+              <span className={FLABEL}>Email address</span>
+              <input type="email" required value={email} onChange={(e) => { setSentTo(""); setEmail(e.target.value); }} className={FIELD} autoComplete="email" />
             </label>
-            <button type="submit" className={solidBtn}>
-              Send receipt
-            </button>
-            <p aria-live="polite" className={sentTo ? "flex items-center justify-center gap-1.5 text-sm font-bold text-[var(--mg-ink)]" : "sr-only"}>
-              {sentTo && (
-                <>
-                  <Icon name="check" className="h-4 w-4 text-[var(--mg-brown)]" /> Receipt sent to {sentTo}
-                </>
-              )}
+            <button type="submit" className={BTN}>Send receipt</button>
+            <p aria-live="polite" className="flex min-h-5 items-center justify-center gap-1.5 text-sm font-semibold">
+              {sentTo && (<><Icon name="check" className="h-4 w-4 text-[var(--b-acc)]" /> Receipt sent to {sentTo}</>)}
             </p>
           </form>
         </Modal>
@@ -2002,6 +1547,8 @@ function ReceiptView({
 }
 
 /* --------------------------------- main ------------------------------------------ */
+/** Holds which receipt is open. Each receipt is a keyed ReceiptView, so switching resets the open item,
+ *  popups, tabs and forms instead of carrying them over from the previous receipt. */
 export default function MangoReceipt({ data, receipts, onSelectReceipt, ...rest }: MangoReceiptProps) {
   const list = useMemo(() => {
     const base = receipts ?? (data ? [data] : sampleMangoReceipts);
@@ -2012,19 +1559,15 @@ export default function MangoReceipt({ data, receipts, onSelectReceipt, ...rest 
   const [currentId, setCurrentId] = useState(data?.invoiceNo ?? list[0].invoiceNo);
   const current = list.find((r) => r.invoiceNo === currentId) ?? list[0];
 
-  const history = useMemo<HistoryRow[]>(
+  const history = useMemo(
     () =>
-      list.map((r) => {
-        const t = totalsOf(r);
-        return {
-          invoiceNo: r.invoiceNo,
-          date: r.date.split(" ")[0],
-          storeName: r.store.name.replace(/^Mango\s*/i, ""),
-          amount: t.total,
-          items: t.pieces,
-          current: r.invoiceNo === current.invoiceNo,
-        };
-      }),
+      list.map((r) => ({
+        invoiceNo: r.invoiceNo,
+        date: r.date.split(" ")[0],
+        store: r.store.name,
+        amount: totalsOf(r).total,
+        current: r.invoiceNo === current.invoiceNo,
+      })),
     [list, current.invoiceNo],
   );
 
