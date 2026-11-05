@@ -1,12 +1,11 @@
 "use client";
 
 /**
- * Mango x RDEP: smart receipt, "Lookbook"
+ * Mango x RDEP: smart receipt, "Lookbook, soft"
  *
- * Concept: a printed lookbook page. A calm, airy canvas with wide-tracked capitals, hairline rules and square
- * corners (no rounded cards). The receipt is a crisp ruled slip with mono type and dotted leaders, the store is a
- * garment hang tag with a punched hole, and the page closes on a black stub. Colours: Mango black, white and the
- * brand brown, with sand used very sparingly. Tier foil is the only metallic.
+ * Concept: a soft, curved lookbook. A light beige canvas, rounded cards, wide-tracked MangoSans capitals and the
+ * Mango brown used generously: the greeting card, the invoice header, the tier card, the refer card and the store tag
+ * are all brown, with black kept for the net total and the closing stub. Tier foil is the only metallic.
  *
  * Content flow (same order for every brand):
  *   1. Greeting + tier chip
@@ -88,19 +87,19 @@ const FONT_FACES = `
 }
 `;
 
-/* Brand tokens: Mango black + brown on a cool light canvas. */
+/* Brand tokens: Mango black + brown on a light beige canvas. */
 const theme = {
   "--b-ink": "#1A1A1A",
   "--b-acc": "#8B6F5E",
   "--b-acc2": "#6E5445",
-  "--b-canvas": "#F5F5F5",
-  "--b-page": "#E4E2DF",
-  "--b-wash": "#F1EEEB",
-  "--b-line": "rgba(139,111,94,0.3)",
-  "--b-gray": "#666666",
-  "--b-soft": "#D8C3B4",
-  "--b-r": "0px",
-  "--b-r-s": "0px",
+  "--b-canvas": "#F4EDE5",
+  "--b-page": "#E3D9CE",
+  "--b-wash": "#EDE3D8",
+  "--b-line": "rgba(139,111,94,0.28)",
+  "--b-gray": "#6A5E57",
+  "--b-soft": "#E2CFC0",
+  "--b-r": "28px",
+  "--b-r-s": "14px",
 } as CSSProperties;
 
 /* Assets + links (every one can be overridden with a prop) */
@@ -482,36 +481,43 @@ function PlaceholderBarcode({ seed }: { seed: string }) {
 
 /* --------------------------------- shared ui ------------------------------------- */
 const ROOT_CLASS = "mg-root";
-const MAIN_CLASS = "mx-auto w-[400px] overflow-hidden bg-[var(--b-canvas)] pb-0 sm:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.35)]";
+const MAIN_CLASS = "mx-auto w-[400px] overflow-hidden bg-[var(--b-canvas)] pb-0 sm:rounded-[36px] sm:shadow-[0_30px_70px_-28px_rgba(80,58,46,0.55)]";
 const FOCUS = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--b-acc)]";
-const DISPLAY = "mg-display uppercase tracking-[0.16em]";
-const DISPLAY_NUM = "mg-display tracking-[0.02em]";
+const DISPLAY = "mg-display uppercase tracking-[0.12em]";
+const DISPLAY_NUM = "mg-display tracking-[0.01em]";
 const MONO = monoClass;
-const CARD = "border border-[var(--b-line)] bg-white";
-const FIELD = "w-full border-0 border-b border-black/30 bg-transparent px-0 py-2.5 text-base text-[var(--b-ink)] outline-none placeholder:text-black/40 focus:border-[var(--b-acc)]";
-const FLABEL = "mb-1 block text-[12px] uppercase tracking-[0.14em] text-[var(--b-gray)]";
-const BTN = `mg-display w-full bg-[var(--b-ink)] py-4 text-[13px] uppercase tracking-[0.22em] text-white active:bg-[var(--b-acc)] [@media(hover:hover)]:hover:bg-[var(--b-acc)] ${FOCUS}`;
-const BTN_OUT = `mg-display flex items-center justify-center gap-2 border border-[var(--b-ink)] bg-white py-4 text-[13px] uppercase tracking-[0.18em] text-[var(--b-ink)] active:bg-[var(--b-ink)] active:text-white [@media(hover:hover)]:hover:bg-[var(--b-ink)] [@media(hover:hover)]:hover:text-white ${FOCUS}`;
-const CHIP_BTN = `inline-flex shrink-0 items-center gap-1.5 border border-[var(--b-ink)] px-3.5 py-2 text-[12px] font-bold uppercase tracking-[0.1em] active:bg-[var(--b-ink)] active:text-white ${FOCUS}`;
-const CHIP_ON = "bg-[var(--b-ink)] text-white";
-const MEDIA_FRAME = "border border-[var(--b-line)]";
-const DOT = "h-[3px]";
-const DOT_ON = "w-8 bg-[var(--b-ink)]";
-const DOT_OFF = "w-4 bg-black/25";
-const MODAL_BODY = "border-t-2 border-[var(--b-ink)] bg-white px-5 pb-7 pt-6 text-[var(--b-ink)]";
-const CLOSE_BTN = `grid h-10 w-10 shrink-0 place-items-center border border-[var(--b-ink)] active:bg-[var(--b-ink)] active:text-white ${FOCUS}`;
-const TIER_CARD = "bg-[var(--b-ink)] p-5 text-white";
-const ALERT_CARD = "bg-[var(--b-acc)] text-white";
-const REFER_CARD = `bg-[var(--b-ink)] text-white active:bg-[var(--b-acc)] [@media(hover:hover)]:hover:bg-[var(--b-acc)] ${FOCUS}`;
-const REFER_CODE = "border border-white/50 text-white";
-const REFER_ARROW = "bg-white text-[var(--b-ink)]";
-const PAPER_WRAP = "mx-4 mt-10";
-const PAPER_SHADOW = "none";
-const PAPER_BODY = "border border-[var(--b-ink)] bg-white px-5 pb-6 pt-5";
-const NET_WRAP = "mt-3.5 bg-[var(--b-ink)] px-4 py-4 text-white";
-const NET_AMT = "text-[32px]";
-const ACTION_BTN = `${MONO} flex min-w-0 flex-col items-center gap-2 border border-[var(--b-ink)] px-1 py-3.5 text-center text-[11px] font-bold uppercase leading-tight tracking-[0.06em] active:bg-[var(--b-ink)] active:text-white [@media(hover:hover)]:hover:bg-[var(--b-ink)] [@media(hover:hover)]:hover:text-white ${FOCUS}`;
-const STORE_LINE = "border-black/30";
+const CARD = "rounded-[28px] border border-[var(--b-line)] bg-white shadow-[0_14px_30px_-22px_rgba(110,84,69,0.55)]";
+const FIELD = "w-full rounded-2xl border border-[var(--b-line)] bg-[var(--b-wash)] px-4 py-3 text-base text-[var(--b-ink)] outline-none placeholder:text-black/40 focus:border-[var(--b-acc)]";
+const FLABEL = "mb-1.5 block text-[12px] uppercase tracking-[0.14em] text-[var(--b-gray)]";
+const BTN = `mg-display w-full rounded-full bg-[var(--b-acc2)] py-4 text-[13px] uppercase tracking-[0.2em] text-white active:bg-[var(--b-ink)] [@media(hover:hover)]:hover:bg-[var(--b-ink)] ${FOCUS}`;
+const BTN_OUT = `mg-display flex items-center justify-center gap-2 rounded-full border-2 border-[var(--b-acc2)] bg-white py-4 text-[13px] uppercase tracking-[0.16em] text-[var(--b-acc2)] active:bg-[var(--b-acc2)] active:text-white [@media(hover:hover)]:hover:bg-[var(--b-acc2)] [@media(hover:hover)]:hover:text-white ${FOCUS}`;
+const CHIP_BTN = `mg-display inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--b-acc2)] px-4 py-2.5 text-[12px] uppercase tracking-[0.1em] text-white active:bg-[var(--b-ink)] ${FOCUS}`;
+const CHIP_ON = "rounded-full bg-[var(--b-acc2)] text-white";
+const MEDIA_FRAME = "rounded-[28px] shadow-[0_16px_32px_-20px_rgba(110,84,69,0.7)]";
+const DOT = "h-2 rounded-full";
+const DOT_ON = "w-6 bg-[var(--b-acc)]";
+const DOT_OFF = "w-2 bg-[rgba(139,111,94,0.3)]";
+const MODAL_BODY = "rounded-t-[28px] bg-white px-5 pb-7 pt-5 text-[var(--b-ink)] sm:rounded-[28px]";
+const CLOSE_BTN = `grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--b-acc2)] text-white active:bg-[var(--b-ink)] ${FOCUS}`;
+const TIER_CARD = "rounded-[28px] bg-[linear-gradient(135deg,#8B6F5E_0%,#6E5445_100%)] p-5 text-white";
+const ALERT_CARD = "rounded-[28px] bg-[var(--b-soft)] text-[var(--b-ink)]";
+const REFER_CARD = `rounded-[28px] bg-[linear-gradient(135deg,#8B6F5E_0%,#6E5445_100%)] text-white shadow-[0_16px_30px_-18px_rgba(110,84,69,0.9)] active:opacity-90 ${FOCUS}`;
+const REFER_CODE = "rounded-full bg-white/20 text-white";
+const REFER_ARROW = "bg-white text-[var(--b-acc2)]";
+const PAPER_WRAP = "mx-3 mt-10";
+const PAPER_SHADOW = "drop-shadow(0 16px 18px rgba(110,84,69,0.22))";
+const PAPER_TOP_FILL = "#fff";
+const PAPER_BODY = "overflow-hidden rounded-[30px] bg-white";
+const PAPER_HEAD = "flex items-start justify-between gap-4 bg-[linear-gradient(135deg,#8B6F5E_0%,#6E5445_100%)] px-5 py-5 text-white";
+const SUM_BOX = "rounded-[22px] bg-[var(--b-wash)] p-4";
+const TILE = "rounded-2xl bg-[var(--b-wash)]";
+const SIZE_BADGE = "rounded-full border-2 border-[var(--b-acc)] bg-[var(--b-wash)] text-[var(--b-acc2)]";
+const DISC_PILL = "rounded-full bg-[var(--b-acc)] text-white";
+const NET_WRAP = "mt-3.5 rounded-[22px] bg-[var(--b-ink)] px-4 py-4 text-white";
+const NET_AMT = "text-[34px] text-[var(--b-soft)]";
+const NET_LINE = "border-white/30";
+const ACTION_BTN = `${MONO} flex min-w-0 flex-col items-center gap-2 rounded-2xl border-2 border-[var(--b-acc)] px-1 py-3.5 text-center text-[11px] font-bold uppercase leading-tight tracking-[0.04em] text-[var(--b-acc2)] active:bg-[var(--b-acc)] active:text-white [@media(hover:hover)]:hover:bg-[var(--b-acc)] [@media(hover:hover)]:hover:text-white ${FOCUS}`;
+const STORE_LINE = "border-white/30";
 const STUB_LINE = "border-white/30";
 
 /* ---------- fixed-width scaling ---------- */
@@ -609,46 +615,58 @@ function Collapse({ open, id, children }: { open: boolean; id: string; children:
 }
 
 /* ------------------------------ brand pieces ------------------------------------- */
-/** Mango keeps its paper square: no torn or scalloped edge, just a hairline frame. */
-function PaperEdge(_: { down?: boolean }) {
+function PaperEdge(_: { down?: boolean; fill?: string }) {
   return null;
 }
 
-/** Centred, airy greeting: logo on top, wide-tracked name, hairline date rule. */
-function Hero({ data, logoSrc, chip }: { data: Receipt; logoSrc: string; chip: ReactNode }) {
+/** Beige canvas with soft sand circles, giant name, and a brown summary card. */
+function Hero({ data, logoSrc, chip, total, earned }: { data: Receipt; logoSrc: string; chip: ReactNode; total: number; earned: number }) {
   const first = data.customer.name.split(" ")[0];
-  const size = Math.min(44, Math.max(22, Math.floor(290 / (0.74 * first.length + 0.6))));
+  const size = Math.min(58, Math.max(28, Math.floor(330 / (0.78 * first.length + 0.8))));
   return (
-    <header className="px-6 pb-9 pt-7 text-center">
-      <div className="relative flex items-center justify-center">
-        <BrandImage src={logoSrc} alt="MANGO" width={320} height={80} priority className="h-7 w-auto max-w-[45%] object-contain" fallbackClassName="mg-display text-[24px] uppercase tracking-[0.34em]" />
-        {chip && <span className="absolute right-0 top-1/2 -translate-y-1/2">{chip}</span>}
+    <header className="relative overflow-hidden px-5 pb-9 pt-6">
+      <span aria-hidden="true" className="pointer-events-none absolute -right-24 -top-28 h-72 w-72 rounded-full bg-[rgba(216,195,180,0.55)]" />
+      <span aria-hidden="true" className="pointer-events-none absolute -left-20 top-44 h-44 w-44 rounded-full border border-[rgba(139,111,94,0.35)]" />
+      <span aria-hidden="true" className="pointer-events-none absolute right-6 top-40 h-16 w-16 rounded-full border border-[rgba(139,111,94,0.35)]" />
+      <div className="relative flex items-center justify-between gap-3">
+        <BrandImage src={logoSrc} alt="MANGO" width={320} height={80} priority className="h-7 w-auto max-w-[48%] object-contain object-left" fallbackClassName="mg-display text-[24px] uppercase tracking-[0.34em]" />
+        {chip}
       </div>
-      <p className="mt-12 text-[12px] uppercase tracking-[0.5em] text-[var(--b-acc)]">Hello</p>
-      <h1 className="mg-display mt-3 uppercase leading-none tracking-[0.1em] [overflow-wrap:anywhere]" style={{ fontSize: size }}>
+      <p className="relative mt-10 text-[13px] uppercase tracking-[0.42em] text-[var(--b-acc)]">Hello,</p>
+      <h1 className="mg-display relative mt-2 uppercase leading-[0.95] tracking-[0.06em] [overflow-wrap:anywhere]" style={{ fontSize: size }}>
         {first}
       </h1>
-      <div className="mx-auto mt-6 flex items-center justify-center gap-3 text-[12px] uppercase tracking-[0.22em] text-[var(--b-gray)]">
-        <span aria-hidden="true" className="h-px w-10 bg-[var(--b-acc)]" />
-        {data.date.split(" ")[0]}
-        <span aria-hidden="true" className="h-px w-10 bg-[var(--b-acc)]" />
+      <div className="relative mt-7 overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,#8B6F5E_0%,#6E5445_100%)] p-5 text-white shadow-[0_20px_36px_-20px_rgba(110,84,69,0.9)]">
+        <svg aria-hidden="true" viewBox="0 0 200 200" fill="none" stroke="#fff" strokeWidth="1" className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 opacity-[0.16]">
+          <circle cx="100" cy="100" r="92" />
+          <circle cx="100" cy="100" r="68" />
+          <circle cx="100" cy="100" r="44" />
+        </svg>
+        <p className="relative text-[12px] uppercase tracking-[0.22em] text-white/80">Thank you for shopping with us</p>
+        <div className="relative mt-4 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-[12px] text-white/75">Total paid</p>
+            <p className="mg-display mt-0.5 text-[36px] leading-none tabular-nums">₹{inr(total)}</p>
+          </div>
+          <span className="rounded-full bg-white/20 px-3.5 py-2 text-[13px] font-bold">+{inr0(earned)} points</span>
+        </div>
+        <p className="relative mt-4 border-t border-white/25 pt-3 text-[12px] text-white/80">{data.store.name} · {data.date.split(" ")[0]}</p>
       </div>
     </header>
   );
 }
 
 type TabItem = { id: TabId; label: string; icon: IconName; badge?: number };
-/** Quiet text tabs on a hairline, active one underlined in brown. */
+/** Three soft pills; the active one is filled brown. */
 function TabBar({ tabs, tab, onChange }: { tabs: TabItem[]; tab: TabId; onChange: (t: TabId) => void }) {
   return (
-    <div role="tablist" aria-label={PROGRAM} className="flex border-b border-[var(--b-line)]">
+    <div role="tablist" aria-label={PROGRAM} className="grid auto-cols-fr grid-flow-col gap-2">
       {tabs.map((t) => {
         const on = tab === t.id;
         return (
-          <button key={t.id} role="tab" type="button" id={`tab-${t.id}`} aria-selected={on} aria-controls={`panel-${t.id}`} onClick={() => onChange(t.id)} className={`mg-display relative flex-1 pb-3.5 text-center text-[13px] uppercase tracking-[0.2em] ${FOCUS} ${on ? "text-[var(--b-ink)]" : "text-[var(--b-gray)]"}`}>
+          <button key={t.id} role="tab" type="button" id={`tab-${t.id}`} aria-selected={on} aria-controls={`panel-${t.id}`} onClick={() => onChange(t.id)} className={`mg-display flex items-center justify-center gap-1.5 rounded-full py-3.5 text-[12px] uppercase tracking-[0.14em] ${FOCUS} ${on ? "bg-[var(--b-acc2)] text-white shadow-[0_10px_20px_-12px_rgba(110,84,69,0.9)]" : "border border-[var(--b-line)] bg-white text-[var(--b-acc2)]"}`}>
             {t.label}
-            {t.badge ? <sup className="ml-1 text-[10px] tracking-normal text-[var(--b-acc)]">{t.badge}</sup> : null}
-            {on && <span aria-hidden="true" className="absolute inset-x-5 -bottom-px h-[2px] bg-[var(--b-acc)]" />}
+            {t.badge ? <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] tracking-normal ${on ? "bg-white text-[var(--b-acc2)]" : "bg-[var(--b-acc)] text-white"}`}>{t.badge}</span> : null}
           </button>
         );
       })}
@@ -658,7 +676,7 @@ function TabBar({ tabs, tab, onChange }: { tabs: TabItem[]; tab: TabId; onChange
 
 function Tog({ open }: { open: boolean }) {
   return (
-    <span aria-hidden="true" className={`${MONO} grid h-5 w-5 place-items-center border border-[var(--b-ink)] text-[13px] font-bold leading-none ${open ? "bg-[var(--b-ink)] text-white" : ""}`}>
+    <span aria-hidden="true" className={`${MONO} grid h-5 w-5 place-items-center rounded-full border border-[var(--b-acc)] text-[13px] font-bold leading-none ${open ? "bg-[var(--b-acc)] text-white" : "text-[var(--b-acc)]"}`}>
       {open ? "−" : "+"}
     </span>
   );
@@ -667,25 +685,24 @@ function Tog({ open }: { open: boolean }) {
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <div>
-      <h2 className="mg-display text-[22px] uppercase leading-none tracking-[0.2em]">{children}</h2>
-      <span aria-hidden="true" className="mt-3 block h-px w-12 bg-[var(--b-acc)]" />
+      <h2 className="mg-display text-[22px] uppercase leading-none tracking-[0.16em]">{children}</h2>
+      <span aria-hidden="true" className="mt-3 block h-[3px] w-12 rounded-full bg-[var(--b-acc)]" />
     </div>
   );
 }
 
-/** Garment hang tag: punched hole, hairline border. */
+/** Brown hang tag with a punched hole. */
 function StoreShell({ children }: { children: ReactNode }) {
   return (
-    <section aria-label="Store" className="relative border border-[var(--b-ink)] bg-white px-5 pb-5 pt-11 text-[var(--b-ink)]">
-      <span aria-hidden="true" className="absolute left-1/2 top-3.5 h-4 w-4 -translate-x-1/2 rounded-full border border-[var(--b-ink)] bg-[var(--b-canvas)]" />
+    <section aria-label="Store" className="relative rounded-[28px] bg-[linear-gradient(135deg,#8B6F5E_0%,#6E5445_100%)] px-5 pb-5 pt-12 text-white shadow-[0_16px_30px_-18px_rgba(110,84,69,0.9)]">
+      <span aria-hidden="true" className="absolute left-1/2 top-4 h-5 w-5 -translate-x-1/2 rounded-full bg-[var(--b-canvas)]" />
       {children}
     </section>
   );
 }
 
-/** Black closing stub. */
 function StubShell({ children }: { children: ReactNode }) {
-  return <footer className="mt-12 bg-[var(--b-ink)] px-5 pb-10 pt-7 text-white">{children}</footer>;
+  return <footer className="mt-12 rounded-t-[36px] bg-[var(--b-ink)] px-5 pb-10 pt-8 text-white">{children}</footer>;
 }
 
 /** Tier chip (metallic foil). */
@@ -1166,34 +1183,37 @@ function PaperItem({ item, open, onToggle }: { item: MangoItem; open: boolean; o
   const gross = item.mrp * item.qty;
   const pct = gross > 0 ? (item.discount / gross) * 100 : 0;
   return (
-    <li className="border-b border-dashed border-black/40 py-3.5 last:border-b-0">
-      <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={panelId} className={`grid w-full grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 text-left ${FOCUS}`}>
-        <Tog open={open} />
+    <li className="border-b border-dashed border-black/25 py-4 last:border-b-0">
+      <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={panelId} className={`grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 text-left ${FOCUS}`}>
+        <span aria-label={`Size ${item.size}`} className={`${SIZE_BADGE} grid h-11 w-11 place-items-center text-[15px] font-bold`}>{item.size}</span>
         <span className="min-w-0">
           <span className={`${MONO} block text-[13px] font-semibold uppercase leading-snug`}>{item.name}</span>
-          <span className={`${MONO} mt-1 block text-xs text-[var(--b-gray)]`}>
-            QTY {item.qty} &nbsp; MRP {inr0(item.mrp)}
-            {pct > 0 && <> &nbsp; −{trim(pct)}%</>}
+          <span className={`${MONO} mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--b-gray)]`}>
+            <span>Qty {item.qty}</span>
+            {pct > 0 && <span className={`${DISC_PILL} px-2 py-0.5 font-bold`}>{trim(pct)}% off</span>}
+          </span>
+          <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold">
+            Details <Tog open={open} />
           </span>
         </span>
         <span className="text-right">
-          <span className={`${MONO} block text-sm font-bold leading-snug tabular-nums`}>{inr(netOf(item))}</span>
-          {item.discount > 0 && <s className={`${MONO} block text-xs tabular-nums text-[var(--b-gray)]`}>{inr(gross)}</s>}
+          <span className={`${MONO} block text-[15px] font-bold leading-snug tabular-nums`}>{inr(netOf(item))}</span>
+          {item.discount > 0 && <s className={`${MONO} mt-0.5 block text-xs tabular-nums text-[var(--b-gray)]`}>{inr(gross)}</s>}
         </span>
       </button>
       <Collapse open={open} id={panelId}>
-        <dl className={`${MONO} ml-9 mt-3 grid grid-cols-2 gap-2 text-xs`}>
+        <dl className={`${MONO} mt-3 grid grid-cols-3 gap-2 text-xs`}>
           {([
             ["SKU", item.sku],
             ["HSN", item.hsn],
-            ["Size", item.size],
             ["UoM", "Pcs"],
+            ["MRP", inr(item.mrp)],
             ["Discount", `${trim(pct)}%`],
             ["Saved", inr(item.discount)],
           ] as [string, string][]).map(([k, v]) => (
-            <div key={k} className="min-w-0 bg-[var(--b-wash)] px-2.5 py-2" style={{ borderRadius: "var(--b-r-s)" }}>
+            <div key={k} className={`${TILE} min-w-0 px-2.5 py-2`}>
               <dt className="text-[var(--b-gray)]">{k}</dt>
-              <dd className="mt-0.5 break-words text-[13px] font-bold tabular-nums">{v}</dd>
+              <dd className="mt-0.5 break-words text-[12px] font-bold tabular-nums">{v}</dd>
             </div>
           ))}
         </dl>
@@ -1312,7 +1332,7 @@ function ReceiptView({ data, history, onSelect, qrSrc, barcodeSrc, logoSrc = DEF
 
       <main style={zoomStyle(scale)} className={MAIN_CLASS}>
         {/* 1. Greeting */}
-        <Hero data={data} logoSrc={logoSrc} chip={club ? <TierChip tier={club.tier} /> : null} />
+        <Hero data={data} logoSrc={logoSrc} chip={club ? <TierChip tier={club.tier} /> : null} total={t.total} earned={earned} />
 
         <div className="space-y-7 px-4 pt-7">
           {/* 2. Video / banners */}
@@ -1323,11 +1343,16 @@ function ReceiptView({ data, history, onSelect, qrSrc, barcodeSrc, logoSrc = DEF
 
         {/* 4. The receipt */}
         <section aria-label="Receipt" className={PAPER_WRAP} style={{ filter: PAPER_SHADOW }}>
-          <PaperEdge />
+          <PaperEdge fill={PAPER_TOP_FILL} />
           <div className={PAPER_BODY}>
-            <div className="flex items-center justify-between gap-4">
-              <h2 className={`${DISPLAY} text-[30px] leading-none`}>Tax invoice</h2>
-              <div className="h-12 w-12 shrink-0 overflow-hidden bg-white ring-1 ring-black/25">
+            {/* header band: what this is, where and when, plus the QR */}
+            <div className={PAPER_HEAD}>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.24em] opacity-80">Tax invoice</p>
+                <h2 className={`${DISPLAY} mt-1.5 text-[24px] leading-[1.1]`}>{store.name}</h2>
+                <p className={`${MONO} mt-2 text-xs opacity-85`}>{data.date}</p>
+              </div>
+              <div className="h-[60px] w-[60px] shrink-0 overflow-hidden rounded-xl bg-white p-1">
                 {qrSrc ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={qrSrc} alt="Receipt QR code" className="h-full w-full object-contain" />
@@ -1337,53 +1362,60 @@ function ReceiptView({ data, history, onSelect, qrSrc, barcodeSrc, logoSrc = DEF
               </div>
             </div>
 
-            <div className={`${MONO} mt-4 flex justify-between border-y-2 border-[var(--b-ink)] py-2 text-xs font-semibold uppercase tracking-wide`}>
-              <span>Item</span>
-              <span>Net amount</span>
-            </div>
-            <ul aria-label="Items purchased">
-              {data.items.map((item, i) => (
-                <PaperItem key={`${item.sku}-${i}`} item={item} open={openItem === i} onToggle={() => setOpenItem(openItem === i ? -1 : i)} />
-              ))}
-            </ul>
-
-            <dl className={`${MONO} space-y-2 border-t-2 border-[var(--b-ink)] pt-3.5 text-sm`}>
-              <Leader label="Subtotal (MRP)" value={inr(t.subtotal)} strong />
-              {t.discount > 0 && <Leader label="Discount" value={`− ${inr(t.discount)}`} strong />}
-              <Leader label="SGST" value={`+ ${inr(data.sgst)}`} strong />
-              <Leader label="CGST" value={`+ ${inr(data.cgst)}`} strong />
-            </dl>
-
-            <div className={NET_WRAP}>
-              <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
-                <span className={`${DISPLAY} text-lg leading-none`}>Net total</span>
-                <span className={`${DISPLAY_NUM} ${NET_AMT} leading-none tabular-nums`}>₹{inr(t.total)}</span>
+            <div className="px-5 pb-6 pt-5">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className={`${DISPLAY} text-[18px] leading-none`}>Your items</h3>
+                <span className={`${DISC_PILL} px-3 py-1 text-xs font-bold`}>{t.pieces} {t.pieces === 1 ? "piece" : "pieces"}</span>
               </div>
-            </div>
-            <p className={`${MONO} mt-2.5 text-xs text-[var(--b-gray)]`}>Pieces purchased: {t.pieces}</p>
+              <ul aria-label="Items purchased" className="mt-1">
+                {data.items.map((item, i) => (
+                  <PaperItem key={`${item.sku}-${i}`} item={item} open={openItem === i} onToggle={() => setOpenItem(openItem === i ? -1 : i)} />
+                ))}
+              </ul>
 
-            <dl className={`${MONO} mt-5 space-y-1.5 border-t border-dashed border-black/40 pt-4 text-xs`}>
-              <Leader label="Invoice no" value={data.invoiceNo} strong />
-              <Leader label="Date" value={data.date} strong />
-              <Leader label="Associate" value={store.associate} strong />
-            </dl>
+              <dl className={`${MONO} ${SUM_BOX} mt-3 space-y-2.5 text-sm`}>
+                <Leader label="Subtotal (MRP)" value={inr(t.subtotal)} strong />
+                {t.discount > 0 && <Leader label="You saved" value={`− ${inr(t.discount)}`} strong />}
+                <Leader label="SGST" value={`+ ${inr(data.sgst)}`} strong />
+                <Leader label="CGST" value={`+ ${inr(data.cgst)}`} strong />
+              </dl>
 
-            <h3 className={`${DISPLAY} mt-5 text-[20px] leading-none`}>Payment</h3>
-            <dl className={`${MONO} mt-3 space-y-2 text-sm`}>
-              <Leader label={`${data.payment.mode} · ${data.payment.ref}`} value={inr(t.total)} strong />
-            </dl>
+              <div className={NET_WRAP}>
+                <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+                  <span className={`${DISPLAY} text-lg leading-none`}>Net total</span>
+                  <span className={`${DISPLAY_NUM} ${NET_AMT} leading-none tabular-nums`}>₹{inr(t.total)}</span>
+                </div>
+                <div className={`${MONO} mt-3.5 flex items-center justify-between gap-3 border-t border-dashed ${NET_LINE} pt-3 text-xs`}>
+                  <span className="opacity-75">Paid by</span>
+                  <span className="font-bold">{data.payment.mode} · {data.payment.ref}</span>
+                </div>
+              </div>
 
-            <div className="mt-6 grid grid-cols-3 gap-2.5">
-              {([
-                { icon: "history", label: "History", onClick: () => setModal("history") },
-                { icon: "mail", label: "Email", onClick: () => setModal("email") },
-                { icon: "download", label: "Download", onClick: handleDownload },
-              ] as { icon: IconName; label: string; onClick: () => void }[]).map((a) => (
-                <button key={a.label} type="button" onClick={a.onClick} className={ACTION_BTN}>
-                  <Icon name={a.icon} className="h-5 w-5 shrink-0" />
-                  <span className="max-w-full truncate">{a.label}</span>
-                </button>
-              ))}
+              <dl className="mt-4 grid grid-cols-2 gap-2">
+                {([
+                  ["Invoice no", data.invoiceNo],
+                  ["Date", data.date.split(" ")[0]],
+                  ["Associate", store.associate],
+                ] as [string, string][]).map(([k, v]) => (
+                  <div key={k} className={`${TILE} min-w-0 p-3 ${k === "Invoice no" ? "col-span-2" : ""}`}>
+                    <dt className="text-[11px] uppercase tracking-[0.08em] text-[var(--b-gray)]">{k}</dt>
+                    <dd className={`${MONO} mt-1 break-all text-[12px] font-bold leading-snug`}>{v}</dd>
+                  </div>
+                ))}
+              </dl>
+
+              <div className="mt-5 grid grid-cols-3 gap-2.5">
+                {([
+                  { icon: "history", label: "History", onClick: () => setModal("history") },
+                  { icon: "mail", label: "Email", onClick: () => setModal("email") },
+                  { icon: "download", label: "Download", onClick: handleDownload },
+                ] as { icon: IconName; label: string; onClick: () => void }[]).map((a) => (
+                  <button key={a.label} type="button" onClick={a.onClick} className={ACTION_BTN}>
+                    <Icon name={a.icon} className="h-5 w-5 shrink-0" />
+                    <span className="max-w-full truncate">{a.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           <PaperEdge down />
