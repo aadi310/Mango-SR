@@ -110,7 +110,7 @@ const PROGRAM = "Mango Club";
 const MARKETING_VIDEO_ID = "NOWWhR1JlGQ"; // https://youtu.be/NOWWhR1JlGQ
 /* Banner slides that follow the video. Put 1920x1080 images in /public and list them here;
  * leave the array empty and the carousel is just the video. */
-const MARKETING_BANNERS: string[] = ["/images/design-mode/mango-campaign-hero.png", "/images/design-mode/mango-new-arrivals.png"];
+const MARKETING_BANNERS: string[] = [];
 const MARKETING_IMAGE_MS = 4000;
 
 /* Club tiers, lowest to highest. `foil` is the metallic gradient used on lettering and chips. */
@@ -499,26 +499,26 @@ const DOT_ON = "w-6 bg-[var(--b-acc)]";
 const DOT_OFF = "w-2 bg-[rgba(139,111,94,0.3)]";
 const MODAL_BODY = "rounded-t-[28px] bg-white px-5 pb-7 pt-5 text-[var(--b-ink)] sm:rounded-[28px]";
 const CLOSE_BTN = `grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--b-acc2)] text-white active:bg-[var(--b-ink)] ${FOCUS}`;
-const TIER_CARD = "rounded-[28px] bg-[linear-gradient(135deg,#8B6F5E_0%,#6E5445_100%)] p-5 text-white";
+const TIER_CARD = "rounded-[28px] bg-[#2B2420] p-5 text-white";
 const ALERT_CARD = "rounded-[28px] bg-[var(--b-soft)] text-[var(--b-ink)]";
-const REFER_CARD = `rounded-[28px] bg-[linear-gradient(135deg,#8B6F5E_0%,#6E5445_100%)] text-white shadow-[0_16px_30px_-18px_rgba(110,84,69,0.9)] active:opacity-90 ${FOCUS}`;
-const REFER_CODE = "rounded-full bg-white/20 text-white";
-const REFER_ARROW = "bg-white text-[var(--b-acc2)]";
+const REFER_CARD = `rounded-[28px] border border-[var(--b-line)] bg-white shadow-[0_14px_30px_-22px_rgba(110,84,69,0.55)] active:bg-[var(--b-wash)] ${FOCUS}`;
+const REFER_CODE = "rounded-full bg-[var(--b-wash)] text-[var(--b-acc2)]";
+const REFER_ARROW = "bg-[var(--b-acc2)] text-white";
 const PAPER_WRAP = "mx-3 mt-10";
 const PAPER_SHADOW = "drop-shadow(0 16px 18px rgba(110,84,69,0.22))";
 const PAPER_TOP_FILL = "#fff";
 const PAPER_BODY = "overflow-hidden rounded-[30px] bg-white";
-const PAPER_HEAD = "flex items-start justify-between gap-4 bg-[linear-gradient(135deg,#8B6F5E_0%,#6E5445_100%)] px-5 py-5 text-white";
+const PAPER_HEAD = "flex items-start justify-between gap-4 border-b border-[var(--b-line)] bg-[var(--b-wash)] px-5 py-5 text-[var(--b-ink)]";
 const SUM_BOX = "rounded-[22px] bg-[var(--b-wash)] p-4";
 const TILE = "rounded-2xl bg-[var(--b-wash)]";
 const SIZE_BADGE = "rounded-full border-2 border-[var(--b-acc)] bg-[var(--b-wash)] text-[var(--b-acc2)]";
 const DISC_PILL = "rounded-full bg-[var(--b-acc)] text-white";
-const NET_WRAP = "mt-3.5 rounded-[22px] bg-[var(--b-ink)] px-4 py-4 text-white";
-const NET_AMT = "text-[34px] text-[var(--b-soft)]";
-const NET_LINE = "border-white/30";
+const NET_WRAP = "mt-3.5 rounded-[22px] bg-[var(--b-soft)] px-4 py-4 text-[var(--b-ink)]";
+const NET_AMT = "text-[34px] text-[var(--b-acc2)]";
+const NET_LINE = "border-black/25";
 const ACTION_BTN = `${MONO} flex min-w-0 flex-col items-center gap-2 rounded-2xl border-2 border-[var(--b-acc)] px-1 py-3.5 text-center text-[11px] font-bold uppercase leading-tight tracking-[0.04em] text-[var(--b-acc2)] active:bg-[var(--b-acc)] active:text-white [@media(hover:hover)]:hover:bg-[var(--b-acc)] [@media(hover:hover)]:hover:text-white ${FOCUS}`;
-const STORE_LINE = "border-white/30";
-const STUB_LINE = "border-white/30";
+const STORE_LINE = "border-black/25";
+const STUB_LINE = "border-black/25";
 
 /* ---------- fixed-width scaling ---------- */
 const DESIGN_W = 400;
@@ -636,21 +636,21 @@ function Hero({ data, logoSrc, chip, total, earned }: { data: Receipt; logoSrc: 
       <h1 className="mg-display relative mt-2 uppercase leading-[0.95] tracking-[0.06em] [overflow-wrap:anywhere]" style={{ fontSize: size }}>
         {first}
       </h1>
-      <div className="relative mt-7 overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,#8B6F5E_0%,#6E5445_100%)] p-5 text-white shadow-[0_20px_36px_-20px_rgba(110,84,69,0.9)]">
-        <svg aria-hidden="true" viewBox="0 0 200 200" fill="none" stroke="#fff" strokeWidth="1" className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 opacity-[0.16]">
+      <div className="relative mt-7 overflow-hidden rounded-[28px] border border-[var(--b-line)] bg-white p-5 text-[var(--b-ink)] shadow-[0_20px_36px_-24px_rgba(110,84,69,0.6)]">
+        <svg aria-hidden="true" viewBox="0 0 200 200" fill="none" stroke="#8B6F5E" strokeWidth="1" className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 opacity-[0.25]">
           <circle cx="100" cy="100" r="92" />
           <circle cx="100" cy="100" r="68" />
           <circle cx="100" cy="100" r="44" />
         </svg>
-        <p className="relative text-[12px] uppercase tracking-[0.22em] text-white/80">Thank you for shopping with us</p>
+        <p className="relative text-[12px] uppercase tracking-[0.22em] text-[var(--b-acc)]">Thank you for shopping with us</p>
         <div className="relative mt-4 flex items-end justify-between gap-3">
           <div>
-            <p className="text-[12px] text-white/75">Total paid</p>
+            <p className="text-[12px] text-[var(--b-gray)]">Total paid</p>
             <p className="mg-display mt-0.5 text-[36px] leading-none tabular-nums">₹{inr(total)}</p>
           </div>
-          <span className="rounded-full bg-white/20 px-3.5 py-2 text-[13px] font-bold">+{inr0(earned)} points</span>
+          <span className="rounded-full bg-[var(--b-wash)] px-3.5 py-2 text-[13px] font-bold text-[var(--b-acc2)]">+{inr0(earned)} points</span>
         </div>
-        <p className="relative mt-4 border-t border-white/25 pt-3 text-[12px] text-white/80">{data.store.name} · {data.date.split(" ")[0]}</p>
+        <p className="relative mt-4 border-t border-dashed border-[var(--b-line)] pt-3 text-[12px] text-[var(--b-gray)]">{data.store.name} · {data.date.split(" ")[0]}</p>
       </div>
     </header>
   );
@@ -694,15 +694,15 @@ function SectionTitle({ children }: { children: ReactNode }) {
 /** Brown hang tag with a punched hole. */
 function StoreShell({ children }: { children: ReactNode }) {
   return (
-    <section aria-label="Store" className="relative rounded-[28px] bg-[linear-gradient(135deg,#8B6F5E_0%,#6E5445_100%)] px-5 pb-5 pt-12 text-white shadow-[0_16px_30px_-18px_rgba(110,84,69,0.9)]">
-      <span aria-hidden="true" className="absolute left-1/2 top-4 h-5 w-5 -translate-x-1/2 rounded-full bg-[var(--b-canvas)]" />
+    <section aria-label="Store" className="relative rounded-[28px] border border-[var(--b-line)] bg-white px-5 pb-5 pt-12 text-[var(--b-ink)] shadow-[0_14px_30px_-22px_rgba(110,84,69,0.55)]">
+      <span aria-hidden="true" className="absolute left-1/2 top-4 h-5 w-5 -translate-x-1/2 rounded-full border-2 border-[var(--b-acc)] bg-[var(--b-canvas)]" />
       {children}
     </section>
   );
 }
 
 function StubShell({ children }: { children: ReactNode }) {
-  return <footer className="mt-12 rounded-t-[36px] bg-[var(--b-ink)] px-5 pb-10 pt-8 text-white">{children}</footer>;
+  return <footer className="mt-12 rounded-t-[36px] border-t border-[var(--b-line)] bg-white px-5 pb-10 pt-8 text-[var(--b-ink)] shadow-[0_-14px_30px_-24px_rgba(110,84,69,0.5)]">{children}</footer>;
 }
 
 /** Tier chip (metallic foil). */
