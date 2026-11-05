@@ -500,7 +500,7 @@ const DOT_OFF = "w-2 bg-[rgba(139,111,94,0.3)]";
 const MODAL_BODY = "rounded-t-[28px] bg-white px-5 pb-7 pt-5 text-[var(--b-ink)] sm:rounded-[28px]";
 const CLOSE_BTN = `grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--b-acc2)] text-white active:bg-[var(--b-ink)] ${FOCUS}`;
 const TIER_CARD = "rounded-[28px] bg-[#2B2420] p-5 text-white";
-const ALERT_CARD = "rounded-[28px] bg-[var(--b-soft)] text-[var(--b-ink)]";
+const ALERT_CARD = "rounded-[28px] border border-[var(--b-line)] bg-white text-[var(--b-ink)]";
 const REFER_CARD = `rounded-[28px] border border-[var(--b-line)] bg-white shadow-[0_14px_30px_-22px_rgba(110,84,69,0.55)] active:bg-[var(--b-wash)] ${FOCUS}`;
 const REFER_CODE = "rounded-full bg-[var(--b-wash)] text-[var(--b-acc2)]";
 const REFER_ARROW = "bg-[var(--b-acc2)] text-white";
@@ -508,15 +508,15 @@ const PAPER_WRAP = "mx-3 mt-10";
 const PAPER_SHADOW = "drop-shadow(0 16px 18px rgba(110,84,69,0.22))";
 const PAPER_TOP_FILL = "#fff";
 const PAPER_BODY = "overflow-hidden rounded-[30px] bg-white";
-const PAPER_HEAD = "flex items-start justify-between gap-4 border-b border-[var(--b-line)] bg-[var(--b-wash)] px-5 py-5 text-[var(--b-ink)]";
-const SUM_BOX = "rounded-[22px] bg-[var(--b-wash)] p-4";
-const TILE = "rounded-2xl bg-[var(--b-wash)]";
+const PAPER_HEAD = "flex items-start justify-between gap-4 border-b border-[var(--b-line)] bg-white px-5 py-5 text-[var(--b-ink)]";
+const SUM_BOX = "rounded-[22px] border border-[var(--b-line)] bg-white p-4";
+const TILE = "rounded-2xl border border-[var(--b-line)] bg-white";
 const SIZE_BADGE = "rounded-full border-2 border-[var(--b-acc)] bg-[var(--b-wash)] text-[var(--b-acc2)]";
 const DISC_PILL = "rounded-full bg-[var(--b-acc)] text-white";
-const NET_WRAP = "mt-3.5 rounded-[22px] bg-[var(--b-soft)] px-4 py-4 text-[var(--b-ink)]";
+const NET_WRAP = "mt-3.5 rounded-[22px] border-2 border-[var(--b-acc)] bg-white px-4 py-4 text-[var(--b-ink)]";
 const NET_AMT = "text-[34px] text-[var(--b-acc2)]";
 const NET_LINE = "border-black/25";
-const ACTION_BTN = `${MONO} flex min-w-0 flex-col items-center gap-2 rounded-2xl border-2 border-[var(--b-acc)] px-1 py-3.5 text-center text-[11px] font-bold uppercase leading-tight tracking-[0.04em] text-[var(--b-acc2)] active:bg-[var(--b-acc)] active:text-white [@media(hover:hover)]:hover:bg-[var(--b-acc)] [@media(hover:hover)]:hover:text-white ${FOCUS}`;
+const ACTION_BTN = `${MONO} flex min-w-0 flex-col items-center gap-2 rounded-2xl border border-[var(--b-line)] bg-white px-1 py-3.5 text-center text-[11px] font-bold uppercase leading-tight tracking-[0.04em] text-[var(--b-ink)] active:bg-[var(--b-acc)] active:text-white [@media(hover:hover)]:hover:bg-[var(--b-acc)] [@media(hover:hover)]:hover:text-white ${FOCUS}`;
 const STORE_LINE = "border-black/25";
 const STUB_LINE = "border-black/25";
 
@@ -624,10 +624,8 @@ function Hero({ data, logoSrc, chip, total, earned }: { data: Receipt; logoSrc: 
   const first = data.customer.name.split(" ")[0];
   const size = Math.min(58, Math.max(28, Math.floor(330 / (0.78 * first.length + 0.8))));
   return (
-    <header className="relative overflow-hidden px-5 pb-9 pt-6">
-      <span aria-hidden="true" className="pointer-events-none absolute -right-24 -top-28 h-72 w-72 rounded-full bg-[rgba(216,195,180,0.55)]" />
-      <span aria-hidden="true" className="pointer-events-none absolute -left-20 top-44 h-44 w-44 rounded-full border border-[rgba(139,111,94,0.35)]" />
-      <span aria-hidden="true" className="pointer-events-none absolute right-6 top-40 h-16 w-16 rounded-full border border-[rgba(139,111,94,0.35)]" />
+    <header className="relative overflow-hidden px-5 pb-1 pt-6">
+      <span aria-hidden="true" className="pointer-events-none absolute -right-28 -top-32 h-64 w-64 rounded-full bg-[rgba(216,195,180,0.32)]" />
       <div className="relative flex items-center justify-between gap-3">
         <BrandImage src={logoSrc} alt="MANGO" width={320} height={80} priority className="h-7 w-auto max-w-[48%] object-contain object-left" fallbackClassName="mg-display text-[24px] uppercase tracking-[0.34em]" />
         {chip}
@@ -637,11 +635,6 @@ function Hero({ data, logoSrc, chip, total, earned }: { data: Receipt; logoSrc: 
         {first}
       </h1>
       <div className="relative mt-7 overflow-hidden rounded-[28px] border border-[var(--b-line)] bg-white p-5 text-[var(--b-ink)] shadow-[0_20px_36px_-24px_rgba(110,84,69,0.6)]">
-        <svg aria-hidden="true" viewBox="0 0 200 200" fill="none" stroke="#8B6F5E" strokeWidth="1" className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 opacity-[0.25]">
-          <circle cx="100" cy="100" r="92" />
-          <circle cx="100" cy="100" r="68" />
-          <circle cx="100" cy="100" r="44" />
-        </svg>
         <p className="relative text-[12px] uppercase tracking-[0.22em] text-[var(--b-acc)]">Thank you for shopping with us</p>
         <div className="relative mt-4 flex items-end justify-between gap-3">
           <div>
